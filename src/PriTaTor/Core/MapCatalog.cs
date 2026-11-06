@@ -35,7 +35,8 @@ namespace PriTaTor.Core
         // to about one pixel, so there's no automatic offset; these hold a position set by hand.
         public double? ManualDX, ManualDZ;
         public string ManualMinimap;
-        public string TerrainStamp;         // which .smd the saved terrain picture was drawn from
+        public string TerrainStamp;         // which .smd and textures the saved terrain picture was drawn from
+        public bool TerrainTextured;
         public List<TwinInfo> Twins = new List<TwinInfo>();
         public bool? InServerExe;
 
@@ -58,6 +59,62 @@ namespace PriTaTor.Core
         public bool ImagesWritable;
         public int MapsMeasured, MapsDrawn;
 
+        /// <summary>A client folder to take textures from, if the server's own Field folder doesn't have them.</summary>
+        public string TextureFolder;
+        public int TextureCount;
+        public bool HasTextures => TextureCount >= MinimumTextures;
+        /// <summary>Saved pictures are redrawn when this changes, such as when textures are added.</summary>
+        public string TextureStamp => HasTextures ? "tex" + TextureCount : "plain";
+        const int MinimumTextures = 20;
+        readonly List<string> textureRoots = new List<string>();
+
+        void FindTextures()
+        {
+            textureRoots.Clear();
+            TextureCount = 0;
+            var fields = new List<string> { FieldRoot };
+            if (!string.IsNullOrEmpty(TextureFolder))
+            {
+                string inner = Path.Combine(TextureFolder, "Field");
+                fields.Add(Directory.Exists(inner) ? inner : TextureFolder);
+            }
+            foreach (string field in fields)
+            {
+                if (!Directory.Exists(field)) continue;
+                string minimaps = Path.Combine(field, "map") + Path.DirectorySeparatorChar;
+                int n = 0;
+                try
+                {
+                    foreach (string f in Directory.EnumerateFiles(field, "*.*", SearchOption.AllDirectories))
+                        if ((f.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+                            && !f.StartsWith(minimaps, StringComparison.OrdinalIgnoreCase)) n++;
+                }
+                catch (IOException) { continue; }
+                catch (UnauthorizedAccessException) { continue; }
+                if (n > 0) { textureRoots.Add(field); TextureCount += n; }
+            }
+        }
+
+        /// <summary>The file for a texture name such as field\\forest\\tree.bmp, or null. The game swaps .bmp and .tga freely.</summary>
+        public string FindTexture(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            string rel = name.Replace('/', '\\').TrimStart('\\');
+            if (rel.StartsWith("field\\", StringComparison.OrdinalIgnoreCase)) rel = rel.Substring(6);
+            foreach (string root in textureRoots)
+            {
+                try
+                {
+                    string p = Path.Combine(root, rel);
+                    if (File.Exists(p)) return p;
+                    string other = Path.ChangeExtension(p, string.Equals(Path.GetExtension(p), ".bmp", StringComparison.OrdinalIgnoreCase) ? ".tga" : ".bmp");
+                    if (File.Exists(other)) return other;
+                }
+                catch (ArgumentException) { }
+            }
+            return null;
+        }
+
         public MapEntry Find(string stem) => Maps.FirstOrDefault(m => string.Equals(m.Stem, stem, StringComparison.OrdinalIgnoreCase));
 
         public static bool LooksLikeServer(string dir) => Directory.Exists(Path.Combine(dir, "GameServer", "Field"));
@@ -76,7 +133,8 @@ namespace PriTaTor.Core
         }
 
         /// <param name="force">Ignore what's saved and measure and draw everything again.</param>
-        public static Catalog Scan(string serverRoot, string fieldRoot, bool force, Action<string, int, int> progress = null)
+        /// <param name="textureFolder">A client folder for textures; "" clears it, and null keeps what's saved.</param>
+        public static Catalog Scan(string serverRoot, string fieldRoot, bool force, Action<string, int, int> progress = null, string textureFolder = null)
         {
             ToolFolder.MoveOldFiles(serverRoot);
             var c = new Catalog
@@ -88,6 +146,9 @@ namespace PriTaTor.Core
             progress?.Invoke("Looking for maps…", 0, 0);
             var saved = Ini.Read(ToolFolder.SettingsToRead(serverRoot));
             List<string> files = c.FindStageFiles(saved, force);
+            string savedTextures = saved.TryGetValue("server", out var serverSection) && serverSection.TryGetValue("TextureFolder", out string tf) ? tf : "";
+            c.TextureFolder = textureFolder ?? savedTextures;
+            c.FindTextures();
             var changed = new List<MapEntry>();
             var entries = new List<MapEntry>();
             var seenRel = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -139,7 +200,7 @@ namespace PriTaTor.Core
             if (changed.Count + redraw.Count > 0) c.Prepare(changed, redraw, progress);
             c.MapsMeasured = changed.Count;
             c.MapsDrawn = c.ImagesWritable ? changed.Count + redraw.Count : 0;
-            c.GeneratedThisRun = changed.Count + redraw.Count > 0 || removedAny;
+            c.GeneratedThisRun = changed.Count + redraw.Count > 0 || removedAny || !string.Equals(c.TextureFolder, savedTextures, StringComparison.OrdinalIgnoreCase);
             if (removedAny)
             {
                 var names = new HashSet<string>(c.Maps.Select(m => m.Stem), StringComparer.OrdinalIgnoreCase);
@@ -212,6 +273,7 @@ namespace PriTaTor.Core
                 e.Verts = int.Parse(s["Verts"]);
                 e.Faces = int.Parse(s["Faces"]);
                 if (s.TryGetValue("Terrain", out string stamp)) e.TerrainStamp = stamp;
+                e.TerrainTextured = s.TryGetValue("TerrainKind", out string kind) && kind == "textured";
                 e.Twins.Clear();
                 if (s.TryGetValue("Twins", out string tw) && tw.Length > 0)
                     foreach (string t in tw.Split(';'))
@@ -451,6 +513,7 @@ namespace PriTaTor.Core
             sb.AppendLine("[server]");
             sb.AppendLine("Generated=" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
             string defaultField = Path.Combine(ServerRoot, "Field");
+            sb.AppendLine("TextureFolder=" + (TextureFolder ?? ""));
             sb.AppendLine("FieldPath=" + (string.Equals(Path.GetFullPath(FieldRoot).TrimEnd('\\'), Path.GetFullPath(defaultField).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) ? "" : FieldRoot));
             foreach (MapEntry m in Maps.Where(x => x.HasGeometry))
             {
@@ -463,7 +526,11 @@ namespace PriTaTor.Core
                 sb.AppendLine("Centre=" + Ini.Join((m.MinX + m.MaxX) / 2, (m.MinZ + m.MaxZ) / 2));
                 sb.AppendLine("Verts=" + m.Verts);
                 sb.AppendLine("Faces=" + m.Faces);
-                if (m.TerrainStamp != null) sb.AppendLine("Terrain=" + m.TerrainStamp);
+                if (m.TerrainStamp != null)
+                {
+                    sb.AppendLine("Terrain=" + m.TerrainStamp);
+                    sb.AppendLine("TerrainKind=" + (m.TerrainTextured ? "textured" : "plain"));
+                }
                 if (m.ManualDX != null) sb.AppendLine("MinimapManual=" + Ini.Join(m.ManualDX.Value, m.ManualDZ ?? 0));
                 if (m.ManualMinimap != null) sb.AppendLine("MinimapFile=" + m.ManualMinimap);
                 sb.AppendLine("Twins=" + string.Join(";", m.Twins.Select(t => t.Stem + "|" + t.DX + "|" + t.DZ + "|" + (t.Exact ? "1" : "0"))));

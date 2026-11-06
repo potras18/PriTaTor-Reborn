@@ -6,8 +6,21 @@ using System.Windows.Forms;
 
 namespace PriTaTor.UI
 {
+    /// <summary>Mouse only: this window appears by itself, so a key meant for another program mustn't press it.</summary>
+    sealed class MouseOnlyButton : Button
+    {
+        public MouseOnlyButton()
+        {
+            SetStyle(ControlStyles.Selectable, false);
+            TabStop = false;
+        }
+    }
+
     public sealed class LoadingForm : Form
     {
+        /// <summary>For automated checks.</summary>
+        public bool CancelCanTakeKeys => cancelButton != null && cancelButton.CanSelect;
+        Button cancelButton;
         readonly Label step = new Label { AutoSize = false, Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.BottomLeft };
         readonly Label detail = new Label { AutoSize = false, Dock = DockStyle.Top, Height = 44, TextAlign = ContentAlignment.TopLeft };
         readonly ProgressBar bar = new ProgressBar { Dock = DockStyle.Top, Height = 8, Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 30 };
@@ -39,7 +52,8 @@ namespace PriTaTor.UI
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 28 };
             if (showCancel)
             {
-                var cancel = new Button { Text = "Cancel", Dock = DockStyle.Right, Width = 84, FlatStyle = FlatStyle.Flat, ForeColor = ForeColor, UseWaitCursor = false, Cursor = Cursors.Default };
+                var cancel = new MouseOnlyButton { Text = "Cancel", Dock = DockStyle.Right, Width = 84, FlatStyle = FlatStyle.Flat, ForeColor = ForeColor, UseWaitCursor = false, Cursor = Cursors.Default };
+                cancelButton = cancel;
                 cancel.FlatAppearance.BorderColor = Color.FromArgb(70, 80, 90);
                 cancel.Click += (s, e) => Application.Exit();
                 bottom.Controls.Add(cancel);

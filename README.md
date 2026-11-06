@@ -20,7 +20,7 @@ something went wrong. Files left in the server folder by an older version move i
 
 | Tab | What it edits |
 |---|---|
-| **Maps** | Monster flags and NPCs on the map: move, add, delete and turn. Each map's monster list and bosses. |
+| **Maps** | Monster flags and NPCs on the map: move, add, delete and turn. Each map's monster list and bosses. Maps can show their real textures. |
 | **Monsters, NPCs, Items** | `GameServer\Monster`, `NPC` and `OpenItem` files, as labelled fields or raw text. |
 | **NPCs > Shop** | What an NPC sells, picked by category and name, with no item codes to type. Also on the Maps tab: **Edit shop…**. |
 | **Names** | The `.zhoon` files holding English names and dialogue. |
@@ -58,7 +58,11 @@ file: the bounds of the vertices its faces use, in the game's world coordinates.
 coordinates, so they line up by construction.
 
 - **Terrain layer:** drawn from the `.smd` itself, so it's exact, and it's there even for maps with no minimap. Each picture
-  is saved as a PNG in `PriTaTor\Terrain\`, in the same folders as `Field\`. They're safe to delete, and get redrawn.
+  is saved as a 2048-pixel JPG in `PriTaTor\Terrain\`, in the same folders as `Field\`. They're safe to delete, and get redrawn.
+- **Textured maps:** servers don't normally hold textures, as they don't need them. To see maps with their real textures, copy
+  the client's textures into the server's `Field` folder in the same folders, or use **File > Use textures from a client
+  folder**. A map missing most of its textures uses plain terrain instead. On a hard drive, the first start with textures
+  takes about 20 seconds once.
 - **Minimap layer:** `Field\map\*.tga` stretched to the map's bounds. This matches the old tool's hand calibrations
   to a median of 31 world units, about one pixel. Minimaps are hand-made art, so a few sit slightly off: **Align minimap**
   lets you nudge one by hand, which moves the picture only, never your flags.

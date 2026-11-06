@@ -23,6 +23,7 @@ namespace PriTaTor.UI
         static MainForm form;
         static StringBuilder log = new StringBuilder();
         static int fails;
+        static bool strayKeysSent, cancelTakesKeys;
 
         [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
         [DllImport("user32.dll")] static extern IntPtr PostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
@@ -87,6 +88,14 @@ namespace PriTaTor.UI
                 // the first run: catch the loading window partway through
                 if (loadShot || n * 2 < total) return;
                 loadShot = true;
+                // stray keys, as if typed into another program when this window appeared
+                foreach (Keys k in new[] { Keys.Space, Keys.Enter, Keys.Space })
+                {
+                    PostMessage(load.Handle, WM_KEYDOWN, (IntPtr)(int)k, IntPtr.Zero);
+                    PostMessage(load.Handle, WM_KEYUP, (IntPtr)(int)k, IntPtr.Zero);
+                }
+                strayKeysSent = true;
+                cancelTakesKeys = load.CancelCanTakeKeys;
                 try
                 {
                     using (var bmp = new Bitmap(load.Width, load.Height, PixelFormat.Format32bppArgb))
@@ -186,6 +195,10 @@ namespace PriTaTor.UI
             form.WindowState = FormWindowState.Normal;
             form.Activate();
 
+            Log("== loading window");
+            Check(strayKeysSent, "Space and Enter were sent to the loading window");
+            Check(!cancelTakesKeys, "its Cancel button can't take the keyboard, and loading carried on");
+
             Log("== opening maps");
             await OpenMap(maps, "fore-2");
             Application.DoEvents();
@@ -194,6 +207,8 @@ namespace PriTaTor.UI
             string png = TerrainCache.PathFor(form.Cat, maps.Session.Entry);
             Check(File.Exists(png) && png.Contains(TerrainCache.FolderName), "terrain picture saved: " + png.Substring(form.ServerRoot.Length));
             Check(c.Terrain != null && c.Terrain.Width > 1000, "and shown");
+            Check(form.Cat.HasTextures == maps.Session.Entry.TerrainTextured, "terrain is textured only when textures are available: " + maps.Session.Entry.TerrainTextured);
+            Check(c.ShowMinimap == !maps.Session.Entry.TerrainTextured, "the minimap starts off on a textured map, and on otherwise");
             Check(form.Visible && Application.OpenForms.Count == 1, "the loading window has closed");
             var openTime = System.Diagnostics.Stopwatch.StartNew();
             await OpenMap(maps, "De-4");

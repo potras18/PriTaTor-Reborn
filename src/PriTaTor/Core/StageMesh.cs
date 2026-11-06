@@ -13,7 +13,7 @@ namespace PriTaTor.Core
     {
         Solid = 0,   // walkable or visible geometry
         Wall = 1,    // invisible collision walls and helpers
-        Pass = 2,    // visible, no collision (tree canopies, plants)
+        Pass = 2,    // visible, no collision (tree canopies, plants): nothing stands on these
         Water = 3
     }
 
@@ -62,10 +62,11 @@ namespace PriTaTor.Core
                 int inUse = BitConverter.ToInt32(b, off);
                 int texCount = BitConverter.ToInt32(b, off + 4);
                 int useState = BitConverter.ToInt32(b, off + 164);
+                int meshState = BitConverter.ToInt32(b, off + 168);
                 int animCount = BitConverter.ToInt32(b, off + 304);
                 if ((useState & 0x400) != 0 || (texCount == 0 && animCount == 0)) kinds[m] = FaceKind.Wall;
                 else if ((useState & 0x200) != 0 || (useState & 0x10000) != 0) kinds[m] = FaceKind.Water;
-                else if ((useState & 0x800) != 0) kinds[m] = FaceKind.Pass;
+                else if ((useState & 0x800) != 0 || (meshState & 1) == 0) kinds[m] = FaceKind.Pass;
                 else kinds[m] = FaceKind.Solid;
                 off += MaterialSize;
                 if (inUse != 0) off += 4 + BitConverter.ToInt32(b, off);
@@ -148,10 +149,11 @@ namespace PriTaTor.Core
 
         int Clamp(int v) => v < 0 ? 0 : v >= gridN ? gridN - 1 : v;
 
-        /// <summary>Heights of the surfaces at a point, highest first. Water and plants only count where nothing solid is there.</summary>
+        /// <summary>Heights of the surfaces at a point, highest first. Water and then plants only count where nothing solid is there.</summary>
         public List<double> SurfacesAt(double x, double z)
         {
             var r = new List<double>();
+            var water = new List<double>();
             var soft = new List<double>();
             if (grid == null) lock (this) { if (grid == null) BuildGrid(); }
             if (x < MinX || x > MaxX || z < MinZ || z > MaxZ) return r;
@@ -168,16 +170,16 @@ namespace PriTaTor.Core
                 double w2 = 1 - w0 - w1;
                 if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
                 double h = (w0 * YI[A[f]] + w1 * YI[B[f]] + w2 * YI[C[f]]) / 256.0;
-                (Kind[f] == FaceKind.Solid ? r : soft).Add(h);
+                (Kind[f] == FaceKind.Solid ? r : Kind[f] == FaceKind.Water ? water : soft).Add(h);
             }
-            if (r.Count == 0) r = soft;
+            if (r.Count == 0) r = water.Count > 0 ? water : soft;
             r.Sort((p, q) => q.CompareTo(p));
             // merge surfaces that are effectively the same
             for (int i = r.Count - 1; i > 0; i--) if (r[i - 1] - r[i] < 0.5) r.RemoveAt(i);
             return r;
         }
 
-        /// <summary>Ground height for a dropped NPC: the top surface, which matches 96% of stored NPCs.</summary>
+        /// <summary>Ground height for a dropped NPC: the top surface characters collide with. This matches 171 of 176 stored NPCs.</summary>
         public double? GroundAt(double x, double z)
         {
             List<double> s = SurfacesAt(x, z);

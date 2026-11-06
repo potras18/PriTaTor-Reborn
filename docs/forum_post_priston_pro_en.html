@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>PriTaTor Reborn: server manager and map editor for Priston Tale</title></head>
+<body>
+<p><strong>PriTaTor Reborn</strong> is a Priston Tale server manager and map editor. One exe, nothing to install.</p>
+<p>PriTaTor has been a favourite in the PT scene since 2008, but its map editor needed each map lined up by hand before it worked. PriTaTor Reborn is a new tool, written from scratch, that keeps the idea, removes the setup and draws your maps with their real textures.</p>
+<p>Put the exe in your server folder and run it. It reads your own map files, works out where every map sits and writes its own settings file. A loading window shows what it's doing. It only prepares each map once, so later starts are quick, and if a map file changes it updates just that map by itself.</p>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/map-editor.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Textured maps</strong></p>
+<ul><li>Draws every map from straight above with its real textures, lighting and transparency, at 2048 pixels</li><li>Flags and NPCs line up exactly, because the picture comes from the map&#x27;s own geometry</li><li>To turn it on, copy the client&#x27;s textures into your server&#x27;s Field folder, or use File &gt; Use textures from a client folder. Servers don&#x27;t normally hold textures, as they don&#x27;t need them</li><li>On a hard drive it takes roughly 20 seconds, once. After that a map is only redrawn if its file changes</li><li>With no textures you get plain terrain, so maps with no minimap still work</li><li>The pictures are saved as JPGs in PriTaTor\Terrain, for you to use however you like</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/textured-maps.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Map editor</strong></p>
+<ul><li>See every monster flag and NPC on the map, lined up automatically</li><li>Drag to move, click to add, Del to remove, with full undo</li><li>Turn NPCs with a handle or by typing a bearing, so they face the right way</li><li>NPCs land on the ground at the height of the terrain, even under a tree</li><li>Edit each map&#x27;s monster list, spawn rates and bosses</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/npc-editor.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Moved maps</strong></p>
+<ul><li>Picks up every map in your Field folder, including moved and older copies like old\forest\o_fore-1</li><li>Finds how far a copy has moved, even when it&#x27;s an older version of the map</li><li>Imports flags, NPCs and monsters onto a moved map in one step</li><li>Warns when a map&#x27;s flags and NPCs are off the map, and can shift them all back</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/moved-map-import.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Data files</strong></p>
+<ul><li>Monsters, NPCs, items and name files as labelled English fields, or as raw text</li><li>A text editor for any settings file in the server folder</li><li>See which maps a monster spawns on</li><li>NPC shop editor: pick what an NPC sells by category and name, with no item codes to type</li><li>Names come from your .zhoon files, whichever language letter they use (E_NAME, J_NAME, B_NAME and so on)</li><li>Korean text is safe: saving only changes the lines you edited</li><li>Every save keeps a backup of the old file</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/shop-editor.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Download and source</strong></p>
+<p>Download: <a href="https://github.com/sungam3d/PriTaTor-Reborn/releases/latest">https://github.com/sungam3d/PriTaTor-Reborn/releases/latest</a><br>Source: <a href="https://github.com/sungam3d/PriTaTor-Reborn">https://github.com/sungam3d/PriTaTor-Reborn</a></p>
+<p>Needs Windows 10 or 11. Reload your server after saving, since it only reads these files at start-up. In-game testing is still under way, so please back up your server first and let me know what you find.</p>
+<p><strong>Credits</strong></p>
+<p>This tool stands on years of other people&#x27;s work, so full credit to:</p>
+<ul><li><strong>Sumomo</strong>, who created PriTaTor in 2008, built it through 1.8 (<a href="https://forum.ragezone.com/threads/pritator-new-npc-manager-items-monsters-maps.441209/">original thread</a>), then released <a href="https://forum.ragezone.com/threads/new-pritator.1123191/">PriTaTor 2</a> with source. Editing spawn flags on the map, and the meanings of the monster, item and NPC fields, come from Sumomo's work. Thank you.</li><li><strong>bobsobol</strong>, who kept the 1.8 downloads and source available and helped work out the game's Korean text encoding in the PriTaTor thread.</li><li><strong>MysteryPT</strong>, who made the map references that shipped with PriTaTor 2.</li></ul>
+<p>Rebuilt by SunnyZ with Claude Code.</p>
+</body></html>

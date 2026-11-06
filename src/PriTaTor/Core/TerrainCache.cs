@@ -1,4 +1,4 @@
-// Terrain pictures saved as PNGs in <server>\PriTaTor\Terrain, mirroring the Field folder, so a map only gets
+// Terrain pictures saved as JPGs in <server>\PriTaTor\Terrain, mirroring the Field folder, so a map only gets
 // drawn again when its .smd changes. PriTaTor.ini records which .smd each picture was drawn from.
 
 using System;
@@ -13,12 +13,12 @@ namespace PriTaTor.Core
         public const string FolderName = ToolFolder.Name;
         public const int LongestSide = 2048;
         /// <summary>Raise this when the drawing changes, so saved pictures get redrawn.</summary>
-        public const int DrawVersion = 1;
+        public const int DrawVersion = 2;
 
         public static string Root(Catalog c) => Path.Combine(c.ServerRoot, FolderName, "Terrain");
-        public static string PathFor(Catalog c, MapEntry m) => Path.Combine(Root(c), Path.ChangeExtension(m.RelPath, ".png"));
-        public static string StampFor(MapEntry m) => m.SmdSize + ":" + m.SmdTicks + ":" + DrawVersion;
-        public static bool IsCurrent(Catalog c, MapEntry m) => m.TerrainStamp == StampFor(m) && File.Exists(PathFor(c, m));
+        public static string PathFor(Catalog c, MapEntry m) => Path.Combine(Root(c), Path.ChangeExtension(m.RelPath, ".jpg"));
+        public static string StampFor(Catalog c, MapEntry m) => m.SmdSize + ":" + m.SmdTicks + ":" + DrawVersion + ":" + c.TextureStamp;
+        public static bool IsCurrent(Catalog c, MapEntry m) => m.TerrainStamp == StampFor(c, m) && File.Exists(PathFor(c, m));
 
         /// <summary>Can pictures be saved here? A read-only server still works, it just draws maps as they open.</summary>
         public static bool CanWrite(Catalog c)
@@ -35,12 +35,29 @@ namespace PriTaTor.Core
             catch (UnauthorizedAccessException) { return false; }
         }
 
+        /// <summary>Textured when the map's textures can be found, otherwise plain terrain.</summary>
+        static Bitmap Draw(Catalog c, MapEntry m, StageMesh mesh, out bool textured)
+        {
+            textured = false;
+            if (c.HasTextures)
+            {
+                Bitmap t = TexturedTerrain.Draw(m.SmdPath, mesh, c.FindTexture, LongestSide);
+                if (t != null) { textured = true; return t; }
+            }
+            return TerrainRaster.Build(mesh, LongestSide).ToBitmap();
+        }
+
         /// <summary>Draws a map and saves its picture. Returns false if it couldn't be saved.</summary>
         public static bool Redraw(Catalog c, MapEntry m, StageMesh mesh)
         {
-            using (Bitmap b = TerrainRaster.Build(mesh, LongestSide).ToBitmap())
+            using (Bitmap b = Draw(c, m, mesh, out bool textured))
+            {
+                m.TerrainTextured = textured;
                 return Save(c, m, b);
+            }
         }
+
+        static readonly ImageCodecInfo Jpeg = Array.Find(ImageCodecInfo.GetImageEncoders(), e => e.MimeType == "image/jpeg");
 
         static bool Save(Catalog c, MapEntry m, Bitmap b)
         {
@@ -49,14 +66,19 @@ namespace PriTaTor.Core
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
                 using (var rgb = new Bitmap(b.Width, b.Height, PixelFormat.Format24bppRgb))
+                using (var quality = new EncoderParameters(1))
                 {
                     using (Graphics g = Graphics.FromImage(rgb))
                         g.DrawImageUnscaled(b, 0, 0);
-                    rgb.Save(tmp, ImageFormat.Png);
+                    quality.Param[0] = new EncoderParameter(Encoder.Quality, 88L);
+                    rgb.Save(tmp, Jpeg, quality);
                 }
                 if (File.Exists(path)) File.Delete(path);
                 File.Move(tmp, path);
-                m.TerrainStamp = StampFor(m);
+                // versions before 3.2.2 saved PNGs
+                string old = Path.ChangeExtension(path, ".png");
+                if (File.Exists(old)) File.Delete(old);
+                m.TerrainStamp = StampFor(c, m);
                 return true;
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.Runtime.InteropServices.ExternalException)
@@ -91,7 +113,8 @@ namespace PriTaTor.Core
                 }
                 catch (Exception ex) when (ex is IOException || ex is ArgumentException || ex is UnauthorizedAccessException) { }
             }
-            Bitmap drawn = TerrainRaster.Build(mesh, LongestSide).ToBitmap();
+            Bitmap drawn = Draw(c, m, mesh, out bool textured);
+            m.TerrainTextured = textured;
             savedNew = Save(c, m, drawn);
             return drawn;
         }
@@ -100,8 +123,11 @@ namespace PriTaTor.Core
         {
             try
             {
-                string p = Path.Combine(Root(c), Path.ChangeExtension(relPath, ".png"));
-                if (File.Exists(p)) File.Delete(p);
+                foreach (string ext in new[] { ".jpg", ".png" })
+                {
+                    string p = Path.Combine(Root(c), Path.ChangeExtension(relPath, ext));
+                    if (File.Exists(p)) File.Delete(p);
+                }
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }

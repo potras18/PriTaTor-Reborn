@@ -3,18 +3,29 @@ A Priston Tale server manager and map editor. One exe, nothing to install.[/CENT
 
 [IMG]https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/map-editor.jpg[/IMG]
 
-PriTaTor has been a favourite in the PT scene since 2008, but its map editor needed each map lined up by hand before it worked. PriTaTor Reborn is a new tool, written from scratch, that keeps the idea and removes the setup.
+PriTaTor has been a favourite in the PT scene since 2008, but its map editor needed each map lined up by hand before it worked. PriTaTor Reborn is a new tool, written from scratch, that keeps the idea, removes the setup and draws your maps with their real textures.
 
 Put the exe in your server folder and run it. It reads your own map files, works out where every map sits and writes its own settings file. A loading window shows what it's doing. It only prepares each map once, so later starts are quick, and if a map file changes it updates just that map by itself.
+
+[B]Textured maps[/B]
+[LIST]
+[*]Draws every map from straight above with its real textures, lighting and transparency, at 2048 pixels
+[*]Flags and NPCs line up exactly, because the picture comes from the map's own geometry
+[*]To turn it on, copy the client's textures into your server's Field folder, or use File > Use textures from a client folder. Servers don't normally hold textures, as they don't need them
+[*]On a hard drive it takes roughly 20 seconds, once. After that a map is only redrawn if its file changes
+[*]With no textures you get plain terrain, so maps with no minimap still work
+[*]The pictures are saved as JPGs in PriTaTor\Terrain, for you to use however you like
+[/LIST]
+
+[IMG]https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/textured-maps.jpg[/IMG]
 
 [B]Map editor[/B]
 [LIST]
 [*]See every monster flag and NPC on the map, lined up automatically
 [*]Drag to move, click to add, Del to remove, with full undo
 [*]Turn NPCs with a handle or by typing a bearing, so they face the right way
-[*]New NPCs land on the ground at the height of the terrain
+[*]NPCs land on the ground at the height of the terrain, even under a tree
 [*]Edit each map's monster list, spawn rates and bosses
-[*]Terrain is drawn from the map itself, so maps with no minimap work too, and the pictures are saved as PNGs you can use yourself
 [/LIST]
 
 [IMG]https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/npc-editor.jpg[/IMG]

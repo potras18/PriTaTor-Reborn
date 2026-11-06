@@ -61,11 +61,11 @@ static class Program
         Console.WriteLine("== terrain pictures");
         {
             string folder = TerrainCache.Root(cat);
-            List<string> pngs = Directory.EnumerateFiles(folder, "*.png", SearchOption.AllDirectories).ToList();
+            List<string> pngs = Directory.EnumerateFiles(folder, "*.jpg", SearchOption.AllDirectories).ToList();
             long bytes = pngs.Sum(f => new FileInfo(f).Length);
             Console.WriteLine($"  {pngs.Count} pictures, {bytes / (1024 * 1024)} MB");
             Check(pngs.Count == cat.Maps.Count(m => m.HasGeometry), "one picture for every map");
-            Check(File.Exists(Path.Combine(folder, "old", "forest", "o_fore-1.png")), "pictures follow the Field folders");
+            Check(File.Exists(Path.Combine(folder, "old", "forest", "o_fore-1.jpg")), "pictures follow the Field folders");
             Check(cat2.MapsMeasured == 0 && cat2.MapsDrawn == 0, "the second start measured and drew nothing");
             MapEntry e = cat2.Find("fore-1");
             Check(TerrainCache.IsCurrent(cat2, e), "the saved settings know the picture is current");
@@ -75,11 +75,16 @@ static class Program
             {
                 Check(!saved1, "loading a current picture doesn't draw it again");
                 Check(fromFile.Width == drawn.Width && fromFile.Height == drawn.Height, "same size as a fresh drawing");
-                int different = 0;
+                long difference = 0, samples = 0;
                 for (int y = 0; y < drawn.Height; y += 37)
                     for (int x = 0; x < drawn.Width; x += 37)
-                        if (fromFile.GetPixel(x, y).ToArgb() != drawn.GetPixel(x, y).ToArgb()) different++;
-                Check(different == 0, "and the same pixels");
+                    {
+                        System.Drawing.Color p = fromFile.GetPixel(x, y), q = drawn.GetPixel(x, y);
+                        difference += Math.Abs(p.R - q.R) + Math.Abs(p.G - q.G) + Math.Abs(p.B - q.B);
+                        samples += 3;
+                    }
+                Console.WriteLine($"  saved JPG differs from a fresh drawing by {(double)difference / samples:0.0} of 255 on average");
+                Check((double)difference / samples < 8, "and nearly the same pixels, since it's a JPG");
             }
             // a broken picture gets replaced rather than stopping the map opening
             string one = TerrainCache.PathFor(cat2, e);
@@ -408,7 +413,7 @@ static class Program
                 File.Delete(copyTo);
                 Catalog p3 = Catalog.Scan(root, tmpField, false, null);
                 Check(p3.Find("o_fore-3") == null || !p3.Find("o_fore-3").HasGeometry, "a removed map is forgotten");
-                Check(!File.Exists(Path.Combine(TerrainCache.Root(p3), "forest", "o_fore-3.png")), "and its picture is deleted");
+                Check(!File.Exists(Path.Combine(TerrainCache.Root(p3), "forest", "o_fore-3.jpg")), "and its picture is deleted");
                 Check(!p3.Find("fore-3").Twins.Any(t => t.Stem.Equals("o_fore-3", StringComparison.OrdinalIgnoreCase)), "and its match is cleared");
             }
             // a non-map .smd isn't opened again, but a new file is noticed
@@ -473,6 +478,104 @@ static class Program
             Check(!ro.ImagesWritable && roMap != null && roMap.MaxX > roMap.MinX, "if nothing can be saved, the tool still starts and maps are measured");
             using (System.Drawing.Bitmap bmp = TerrainCache.Load(ro, roMap, StageMesh.Load(roMap.SmdPath), out bool savedRo))
                 Check(bmp.Width > 1000 && !savedRo, "and drawn when they open");
+        }
+
+        Console.WriteLine("== NPC height under trees");
+        {
+            // leaf materials must not count as ground: a dropped NPC belongs at the bottom, not in the canopy
+            string smd = Directory.EnumerateFiles(field, "fore-2.smd", SearchOption.AllDirectories).First();
+            StageMesh mesh = StageMesh.Load(smd);
+            int total = 0, sameAsGround = 0, noSolid = 0;
+            for (int f = 0; f < mesh.FaceCount; f += 7)
+            {
+                if (mesh.Kind[f] != FaceKind.Pass) continue;
+                double x = (mesh.XI[mesh.A[f]] + mesh.XI[mesh.B[f]] + mesh.XI[mesh.C[f]]) / 768.0, z = (mesh.ZI[mesh.A[f]] + mesh.ZI[mesh.B[f]] + mesh.ZI[mesh.C[f]]) / 768.0;
+                double? g = mesh.GroundAt(x, z);
+                if (g == null) continue;
+                total++;
+                double top = (mesh.YI[mesh.A[f]] + mesh.YI[mesh.B[f]] + mesh.YI[mesh.C[f]]) / 768.0;
+                if (Math.Abs(g.Value - top) >= 1) continue;
+                // the same height as this plant: is that real ground beneath it, or the plant itself?
+                bool solidHere = false;
+                for (int q = 0; q < mesh.FaceCount && !solidHere; q++)
+                {
+                    if (mesh.Kind[q] != FaceKind.Solid) continue;
+                    double ax = mesh.XI[mesh.A[q]] / 256.0, bx = mesh.XI[mesh.B[q]] / 256.0, cx = mesh.XI[mesh.C[q]] / 256.0;
+                    double az = mesh.ZI[mesh.A[q]] / 256.0, bz = mesh.ZI[mesh.B[q]] / 256.0, cz = mesh.ZI[mesh.C[q]] / 256.0;
+                    double d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+                    if (Math.Abs(d) < 1e-6) continue;
+                    double w0 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d, w1 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d, w2 = 1 - w0 - w1;
+                    if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+                    solidHere = true;
+                }
+                if (solidHere) sameAsGround++;
+                else { noSolid++; continue; }
+            }
+            Console.WriteLine($"  {total} points under plants on fore-2: {sameAsGround} sit on real ground at that height, {noSolid} have no solid ground anywhere under them");
+            Check(sameAsGround + noSolid < total / 20, $"almost all of them drop to the ground instead of staying in the plant ({sameAsGround + noSolid} of {total} don't)");
+            Check(noSolid * 100 < total * 2, "spots with no ground under the plant are rare: " + noSolid);
+        }
+
+        Console.WriteLine("== textured maps");
+        {
+            // the way you'd do it: textures copied into the server's own Field folder
+            string client = args.Length > 2 ? args[2] : null;
+            if (client != null)
+            {
+                string texRoot = Path.Combine(root, "scratch_textured");
+                string texField = Path.Combine(texRoot, "Field");
+                Directory.CreateDirectory(Path.Combine(texRoot, "GameServer", "Field"));
+                Directory.CreateDirectory(Path.Combine(texField, "forest"));
+                string fore3 = Path.Combine(texField, "forest", "fore-3.smd");
+                File.Copy(Path.Combine(client, "Field", "forest", "fore-3.smd"), fore3, true);
+
+                Catalog t1 = Catalog.Scan(texRoot, null, false, null);
+                MapEntry a1 = t1.Find("fore-3");
+                Check(!t1.HasTextures && !a1.TerrainTextured && File.Exists(TerrainCache.PathFor(t1, a1)), "with no textures, a map gets plain terrain");
+                long plainSize = new FileInfo(TerrainCache.PathFor(t1, a1)).Length;
+
+                int copied = 0;
+                foreach (string f in Directory.EnumerateFiles(Path.Combine(client, "Field", "forest")))
+                    if (f.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.Copy(f, Path.Combine(texField, "forest", Path.GetFileName(f)), true);
+                        copied++;
+                    }
+                var tw = Stopwatch.StartNew();
+                Catalog t2 = Catalog.Scan(texRoot, null, false, null);
+                MapEntry a2 = t2.Find("fore-3");
+                Console.WriteLine($"  copied {copied} textures in; redrew in {tw.ElapsedMilliseconds} ms; picture {new FileInfo(TerrainCache.PathFor(t2, a2)).Length / 1024} KB, plain was {plainSize / 1024} KB");
+                Check(t2.HasTextures && a2.TerrainTextured, "copying textures into the server's Field folder turns them on by itself");
+                Check(t2.MapsMeasured == 0 && t2.MapsDrawn == 1, "that redraws the picture without measuring again");
+                Catalog t3 = Catalog.Scan(texRoot, null, false, null);
+                Check(t3.MapsDrawn == 0 && t3.Find("fore-3").TerrainTextured, "and the next start does nothing, and remembers it's textured");
+                using (var pic = (System.Drawing.Bitmap)System.Drawing.Image.FromFile(TerrainCache.PathFor(t3, t3.Find("fore-3"))))
+                {
+                    Check(Math.Max(pic.Width, pic.Height) == 2048, "the picture is 2048 on its longest side");
+                    StageMesh m3 = StageMesh.Load(fore3);
+                    using (System.Drawing.Bitmap plain = TerrainRaster.Build(m3, 2048).ToBitmap())
+                        Check(pic.Width == plain.Width && pic.Height == plain.Height, "and exactly the size of the plain terrain, so it lines up the same");
+                }
+
+                // a client folder instead
+                foreach (string f in Directory.EnumerateFiles(Path.Combine(texField, "forest")))
+                    if (!f.EndsWith(".smd", StringComparison.OrdinalIgnoreCase)) File.Delete(f);
+                Catalog t4 = Catalog.Scan(texRoot, null, false, null);
+                Check(!t4.HasTextures && !t4.Find("fore-3").TerrainTextured && t4.MapsDrawn == 1, "removing the textures goes back to plain");
+                Catalog t5 = Catalog.Scan(texRoot, null, false, null, client);
+                Check(t5.HasTextures && t5.Find("fore-3").TerrainTextured && t5.MapsMeasured == 0, "a client folder works too");
+                Catalog t6 = Catalog.Scan(texRoot, null, false, null);
+                Check(t6.TextureFolder == client && t6.MapsDrawn == 0 && t6.Find("fore-3").TerrainTextured, "and is remembered");
+                Catalog t7 = Catalog.Scan(texRoot, null, false, null, "");
+                Check(string.IsNullOrEmpty(t7.TextureFolder) && !t7.Find("fore-3").TerrainTextured, "and can be cleared");
+                // too few textures for a map
+                Directory.CreateDirectory(Path.Combine(texField, "other"));
+                string one = Directory.EnumerateFiles(Path.Combine(client, "Field", "forest"), "*.bmp").First();
+                for (int i = 0; i < 25; i++) File.Copy(one, Path.Combine(texField, "other", "x" + i + ".bmp"), true);
+                Catalog t8 = Catalog.Scan(texRoot, null, false, null);
+                Check(t8.HasTextures && !t8.Find("fore-3").TerrainTextured, "a map whose own textures aren't there stays plain");
+                Check(t8.FindTexture("field\\other\\x1.tga") != null, "looking up a texture swaps .tga and .bmp like the game");
+            }
         }
 
         Console.WriteLine("== names from .zhoon files");

@@ -56,6 +56,8 @@ namespace PriTaTor.UI
         readonly Label warn = new Label { AutoSize = true, MaximumSize = new Size(340, 0), Padding = new Padding(4), ForeColor = Color.DarkRed, Font = Ui.BoldFont };
 
         bool syncing;
+        CheckBox minimapCheck;
+        bool settingMinimap, minimapChosen;
         int loadToken;
         double lastWX, lastWZ;
         public event Action MapLoaded;
@@ -135,11 +137,12 @@ namespace PriTaTor.UI
             return b;
         }
 
-        void AddLayerCheck(string text, bool on, Action<bool> set)
+        CheckBox AddLayerCheck(string text, bool on, Action<bool> set)
         {
             var c = new CheckBox { Text = text, Checked = on, AutoSize = true, BackColor = Color.Transparent };
             c.CheckedChanged += (s, e) => { set(c.Checked); Canvas.InvalidateLayers(); };
             bar.Items.Add(new ToolStripControlHost(c));
+            return c;
         }
 
         void BuildToolbar()
@@ -155,7 +158,7 @@ namespace PriTaTor.UI
             bar.Items.Add(new ToolStripSeparator());
             AddBar("Fit", "Show the whole map (F)", () => Canvas.FitAll());
             AddLayerCheck("Terrain", true, v => Canvas.ShowTerrain = v);
-            AddLayerCheck("Minimap", true, v => Canvas.ShowMinimap = v);
+            minimapCheck = AddLayerCheck("Minimap", true, v => { Canvas.ShowMinimap = v; if (!settingMinimap) minimapChosen = true; });
             var op = new TrackBar { Minimum = 10, Maximum = 100, Value = 85, TickStyle = TickStyle.None, AutoSize = false, Width = 80, Height = 22 };
             op.ValueChanged += (s, e) => { Canvas.MinimapOpacity = op.Value / 100f; Canvas.InvalidateLayers(); };
             bar.Items.Add(new ToolStripControlHost(op) { ToolTipText = "Minimap opacity" });
@@ -445,6 +448,13 @@ namespace PriTaTor.UI
                     Canvas.Minimap?.Dispose();
                     Canvas.Terrain = terrain;
                     Canvas.Minimap = minimap;
+                    // a textured picture would sit under the minimap, so it starts off, unless you've chosen otherwise
+                    if (!minimapChosen)
+                    {
+                        settingMinimap = true;
+                        minimapCheck.Checked = !m.TerrainTextured;
+                        settingMinimap = false;
+                    }
                     Session = s;
                     Canvas.Session = s;
                     Canvas.ClearSelection();
@@ -1096,6 +1106,7 @@ namespace PriTaTor.UI
                 s.AppendLine(string.Format("{0:N0} vertices, {1:N0} faces", m.Verts, m.Faces));
             }
             else s.AppendLine("No .smd file for this map in the Field folder.");
+            s.AppendLine("Terrain: " + (m.TerrainTextured ? "textured" : "plain. For real textures, see File > Use textures from a client folder"));
             s.AppendLine("Minimap: " + (m.MinimapPath != null ? Path.GetFileName(m.MinimapPath) : "none, showing terrain only"));
             if (m.MinimapPath != null)
                 s.AppendLine(m.ManualDX != null ? string.Format("Minimap moved by hand: {0:0}, {1:0}", m.MinimapDX, m.MinimapDZ) : "Minimap stretched to the map's bounds");

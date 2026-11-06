@@ -17,12 +17,13 @@ namespace PriTaTor
             Application.ThreadException += (s, e) => Report(e.Exception);
             AppDomain.CurrentDomain.UnhandledException += (s, e) => Report(e.ExceptionObject as Exception);
 
-            string server = null, field = null, uiTest = null;
+            string server = null, field = null, uiTest = null, textures = null;
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "--server" && i + 1 < args.Length) server = args[++i];
                 else if (args[i] == "--field" && i + 1 < args.Length) field = args[++i];
                 else if (args[i] == "--uitest" && i + 1 < args.Length) uiTest = args[++i];
+                else if (args[i] == "--textures" && i + 1 < args.Length) textures = args[++i];
                 else if (!args[i].StartsWith("--") && Directory.Exists(args[i])) server = args[i];
             }
 
@@ -49,7 +50,7 @@ namespace PriTaTor
             load.Show();
             load.Update();
             var context = new ApplicationContext();
-            var form = new MainForm(server, field);
+            var form = new MainForm(server, field, textures);
             if (uiTest != null) UiTest.Attach(form, uiTest, load);
             form.BeginLoad(load, () => context.MainForm = form);
             Application.Run(context);

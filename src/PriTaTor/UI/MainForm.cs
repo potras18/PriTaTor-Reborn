@@ -14,6 +14,7 @@ namespace PriTaTor.UI
     {
         public readonly string ServerRoot;
         readonly string fieldOverride;
+        string textureOverride;
         readonly MenuStrip menu = new MenuStrip();
         public readonly TabControl Tabs = new TabControl { Dock = DockStyle.Fill };
         readonly StatusStrip status = new StatusStrip();
@@ -30,10 +31,11 @@ namespace PriTaTor.UI
         int lastTab;
         Action onFirstShow;
 
-        public MainForm(string serverRoot, string fieldOverride)
+        public MainForm(string serverRoot, string fieldOverride, string textureFolder = null)
         {
             ServerRoot = serverRoot;
             this.fieldOverride = fieldOverride;
+            textureOverride = textureFolder;
             Text = "PriTaTor Reborn";
             Font = Ui.BaseFont;
             ClientSize = new Size(1500, 900);
@@ -57,6 +59,8 @@ namespace PriTaTor.UI
             file.DropDownItems.Add(new ToolStripSeparator());
             file.DropDownItems.Add(new ToolStripMenuItem("&Rebuild settings and terrain pictures", null, (s, e) => Rebuild()));
             file.DropDownItems.Add(new ToolStripMenuItem("Use a different &Field folder…", null, (s, e) => ChooseField()));
+            file.DropDownItems.Add(new ToolStripMenuItem("Use textures from a &client folder…", null, (s, e) => ChooseTextures()));
+            file.DropDownItems.Add(new ToolStripMenuItem("Stop using client &folder textures", null, (s, e) => ClearTextures()));
             file.DropDownItems.Add(new ToolStripMenuItem("Open &backups folder", null, (s, e) => OpenBackups()));
             file.DropDownItems.Add(new ToolStripMenuItem("Open &terrain pictures folder", null, (s, e) => OpenTerrain()));
             file.DropDownItems.Add(new ToolStripSeparator());
@@ -85,8 +89,9 @@ namespace PriTaTor.UI
             StartScan(false, null, load);
         }
 
-        void StartScan(bool force, string newField = null, LoadingForm given = null)
+        void StartScan(bool force, string newField = null, LoadingForm given = null, string textures = null)
         {
+            if (textures == null) textures = textureOverride;
             LoadingForm load = given;
             if (load == null)
             {
@@ -103,7 +108,7 @@ namespace PriTaTor.UI
                 Exception err = null;
                 try
                 {
-                    c = Catalog.Scan(ServerRoot, fieldArg, force, (msg, n, total) => load.Report(msg, n, total));
+                    c = Catalog.Scan(ServerRoot, fieldArg, force, (msg, n, total) => load.Report(msg, n, total), textures);
                     load.Report("Reading monsters, NPCs and names…");
                     d = ServerData.Load(ServerRoot);
                 }
@@ -144,7 +149,8 @@ namespace PriTaTor.UI
             int prepared = Math.Max(c.MapsMeasured, c.MapsDrawn);
             string how = prepared > 0 ? "  Just prepared: " + prepared + "." : "";
             string warn = c.ImagesWritable ? "" : "  This folder can't be saved to, so maps are prepared again at each start.";
-            SetStatus(done + how + warn);
+            string tex = c.HasTextures ? "" : "  For textured maps, copy the client's Field textures to the server's Field folder, or use File > Use textures from a client folder.";
+            SetStatus(done + how + warn + tex);
             // items are only needed for shops, so read them quietly now and shops open straight away
             Task.Run(() => d.Items.Value);
             if (first)
@@ -224,6 +230,24 @@ namespace PriTaTor.UI
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 StartScan(true, d.SelectedPath);
             }
+        }
+
+        void ChooseTextures()
+        {
+            if (panels.Any(p => !p.ConfirmLeave())) return;
+            using (var d = new FolderBrowserDialog { Description = "Choose a game client folder. Maps are drawn with the textures in its Field folder.", SelectedPath = Cat?.TextureFolder })
+            {
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+                textureOverride = d.SelectedPath;
+                StartScan(false, Cat?.FieldRoot, null, d.SelectedPath);
+            }
+        }
+
+        void ClearTextures()
+        {
+            if (panels.Any(p => !p.ConfirmLeave())) return;
+            textureOverride = "";
+            StartScan(false, Cat?.FieldRoot, null, "");
         }
 
         void OpenBackups()

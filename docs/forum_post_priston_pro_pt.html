@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt"><head><meta charset="utf-8"><title>PriTaTor Reborn: gerenciador de servidor e editor de mapas para Priston Tale</title></head>
+<body>
+<p>O <strong>PriTaTor Reborn</strong> é um gerenciador de servidor e editor de mapas para Priston Tale. É um único .exe, sem nada para instalar.</p>
+<p>O PriTaTor é um dos favoritos da comunidade desde 2008, mas o editor de mapas precisava que cada mapa fosse alinhado à mão antes de funcionar. O PriTaTor Reborn é uma ferramenta nova, escrita do zero, que mantém a ideia, elimina essa configuração e desenha os seus mapas com as texturas reais.</p>
+<p>Coloque o .exe na pasta do servidor e execute. Ele lê os seus próprios arquivos de mapa, descobre onde cada mapa está e cria o próprio arquivo de configurações. Uma janela de carregamento mostra o que está acontecendo. Cada mapa só é preparado uma vez, então as próximas aberturas são rápidas, e se um arquivo de mapa mudar, só esse mapa é atualizado.</p>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/map-editor.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Mapas com texturas</strong></p>
+<ul><li>Desenha cada mapa visto de cima com as texturas reais, a iluminação e a transparência, em 2048 pixels</li><li>Flags e NPCs ficam alinhados com exatidão, porque a imagem vem da própria geometria do mapa</li><li>Para ativar, copie as texturas do cliente para a pasta Field do servidor, ou use File &gt; Use textures from a client folder. Servidores normalmente não têm texturas, porque não precisam delas</li><li>Em um HD, leva cerca de 20 segundos, uma única vez. Depois disso, um mapa só é redesenhado se o arquivo dele mudar</li><li>Sem texturas, você vê o terreno simples, então mapas sem minimapa também funcionam</li><li>As imagens ficam salvas em JPG em PriTaTor\Terrain, para você usar como quiser</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/textured-maps.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Editor de mapas</strong></p>
+<ul><li>Veja cada flag de monstro e cada NPC no mapa, alinhados automaticamente</li><li>Arraste para mover, clique para adicionar, Del para remover, com desfazer completo</li><li>Gire os NPCs com uma alça ou digitando o ângulo, para que olhem na direção certa</li><li>Os NPCs ficam no chão, na altura do terreno, mesmo embaixo de uma árvore</li><li>Edite a lista de monstros, as taxas de spawn e os chefes de cada mapa</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/npc-editor.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Mapas movidos</strong></p>
+<ul><li>Encontra todos os mapas da pasta Field, inclusive cópias movidas e antigas como old\forest\o_fore-1</li><li>Descobre quanto uma cópia foi movida, mesmo quando é uma versão mais antiga do mapa</li><li>Importa flags, NPCs e monstros para um mapa movido de uma só vez</li><li>Avisa quando as flags e os NPCs de um mapa estão fora dele, e pode mover todos de volta</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/moved-map-import.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Arquivos de dados</strong></p>
+<ul><li>Monstros, NPCs, itens e arquivos de nomes em campos com rótulos em inglês, ou como texto puro</li><li>Editor de texto para qualquer arquivo de configuração da pasta do servidor</li><li>Veja em quais mapas cada monstro aparece</li><li>Editor de loja de NPC: escolha o que cada NPC vende por categoria e nome, sem digitar códigos de item</li><li>Os nomes vêm dos seus arquivos .zhoon, seja qual for a letra do idioma (E_NAME, J_NAME, B_NAME etc.)</li><li>Texto em coreano é seguro: ao salvar, só mudam as linhas que você editou</li><li>Cada salvamento guarda um backup do arquivo antigo</li></ul>
+<p><img src="https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/shop-editor.jpg" alt="PriTaTor Reborn"></p>
+<p><strong>Download e código-fonte</strong></p>
+<p>Download: <a href="https://github.com/sungam3d/PriTaTor-Reborn/releases/latest">https://github.com/sungam3d/PriTaTor-Reborn/releases/latest</a><br>Código-fonte: <a href="https://github.com/sungam3d/PriTaTor-Reborn">https://github.com/sungam3d/PriTaTor-Reborn</a></p>
+<p>Precisa do Windows 10 ou 11, e a interface do programa está em inglês. Recarregue o servidor depois de salvar, porque ele só lê esses arquivos ao iniciar. Os testes dentro do jogo ainda estão em andamento, então faça um backup do servidor antes e me conte o que encontrar. Os nomes em *B_NAME só foram testados com amostras, então avise se algum nome aparecer errado.</p>
+<p><strong>Créditos</strong></p>
+<p>Esta ferramenta se apoia em anos de trabalho de outras pessoas, então todo o crédito a:</p>
+<ul><li><strong>Sumomo</strong>, que criou o PriTaTor em 2008, desenvolveu até a versão 1.8 (<a href="https://forum.ragezone.com/threads/pritator-new-npc-manager-items-monsters-maps.441209/">tópico original</a>) e depois lançou o <a href="https://forum.ragezone.com/threads/new-pritator.1123191/">PriTaTor 2</a> com código-fonte. A edição de flags no mapa e o significado dos campos de monstros, itens e NPCs vêm do trabalho de Sumomo. Muito obrigado.</li><li><strong>bobsobol</strong>, que manteve disponíveis os downloads e o código-fonte da 1.8 e ajudou a entender a codificação do texto coreano do jogo no tópico do PriTaTor.</li><li><strong>MysteryPT</strong>, que fez as referências de mapa incluídas no PriTaTor 2.</li></ul>
+<p>Recriado por SunnyZ com Claude Code.</p>
+</body></html>
