@@ -58,6 +58,46 @@ static class Program
         Check(!cat2.GeneratedThisRun, "second scan used the settings file");
         Check(cat.Maps.Count(m => m.HasGeometry) >= 52, "found all stage maps");
 
+        Console.WriteLine("== terrain pictures");
+        {
+            string folder = TerrainCache.Root(cat);
+            List<string> pngs = Directory.EnumerateFiles(folder, "*.png", SearchOption.AllDirectories).ToList();
+            long bytes = pngs.Sum(f => new FileInfo(f).Length);
+            Console.WriteLine($"  {pngs.Count} pictures, {bytes / (1024 * 1024)} MB");
+            Check(pngs.Count == cat.Maps.Count(m => m.HasGeometry), "one picture for every map");
+            Check(File.Exists(Path.Combine(folder, "old", "forest", "o_fore-1.png")), "pictures follow the Field folders");
+            Check(cat2.MapsMeasured == 0 && cat2.MapsDrawn == 0, "the second start measured and drew nothing");
+            MapEntry e = cat2.Find("fore-1");
+            Check(TerrainCache.IsCurrent(cat2, e), "the saved settings know the picture is current");
+            StageMesh mesh = StageMesh.Load(e.SmdPath);
+            using (System.Drawing.Bitmap fromFile = TerrainCache.Load(cat2, e, mesh, out bool saved1))
+            using (System.Drawing.Bitmap drawn = TerrainRaster.Build(mesh, TerrainCache.LongestSide).ToBitmap())
+            {
+                Check(!saved1, "loading a current picture doesn't draw it again");
+                Check(fromFile.Width == drawn.Width && fromFile.Height == drawn.Height, "same size as a fresh drawing");
+                int different = 0;
+                for (int y = 0; y < drawn.Height; y += 37)
+                    for (int x = 0; x < drawn.Width; x += 37)
+                        if (fromFile.GetPixel(x, y).ToArgb() != drawn.GetPixel(x, y).ToArgb()) different++;
+                Check(different == 0, "and the same pixels");
+            }
+            // a broken picture gets replaced rather than stopping the map opening
+            string one = TerrainCache.PathFor(cat2, e);
+            File.WriteAllText(one, "not a picture");
+            using (System.Drawing.Bitmap fixedUp = TerrainCache.Load(cat2, e, mesh, out bool saved2))
+                Check(saved2 && fixedUp.Width > 1000, "a damaged picture is redrawn");
+            using (System.Drawing.Image again = System.Drawing.Image.FromFile(one))
+                Check(again.Width > 1000, "and saved again");
+            // a deleted picture costs one redraw, and no measuring
+            File.Delete(one);
+            Catalog cat3 = Catalog.Scan(root, field, false, null);
+            Check(cat3.MapsMeasured == 0 && cat3.MapsDrawn == 1 && File.Exists(one), "a deleted picture is redrawn alone");
+            DateTime pngTime = File.GetLastWriteTimeUtc(TerrainCache.PathFor(cat3, cat3.Find("fore-2")));
+            Catalog cat4 = Catalog.Scan(root, field, false, null);
+            Check(cat4.MapsDrawn == 0 && File.GetLastWriteTimeUtc(TerrainCache.PathFor(cat4, cat4.Find("fore-2"))) == pngTime, "starting again touches no pictures");
+            Check(cat4.Find("o_fore-1").Twins.Any(t => t.Stem.Equals("fore-1", StringComparison.OrdinalIgnoreCase) && t.DX == -131072), "moved-copy results are kept between starts");
+        }
+
         Console.WriteLine("== moved copies");
         foreach (MapEntry m in cat.Maps.Where(x => x.Stem.StartsWith("o_", StringComparison.OrdinalIgnoreCase)))
             Console.WriteLine($"  {m.Stem,-22} {m.RelPath,-42} minimap={(m.MinimapPath != null ? Path.GetFileName(m.MinimapPath) : "-"),-24} twins: {string.Join(", ", m.Twins.Select(t => t.Stem + " (" + t.DX + "," + t.DZ + (t.Exact ? ",same" : ",older") + ")"))}");
@@ -322,6 +362,8 @@ static class Program
 
             Catalog c1 = Catalog.Scan(root, tmpField, true, null);
             MapEntry a = c1.Find("fore-3");
+            Check(c1.Maps.Any(m => !m.HasGeometry && m.HasSpawnData), "spawn files with no map file are still listed");
+            Check(Catalog.Scan(root, tmpField, false, null).MapsDrawn == 0, "and don't stop the next start");
             Check(a.OutsideCount == 0, "before the move everything is on the map");
             double oldMinX = a.MinX, oldMaxZ = a.MaxZ;
 
@@ -341,6 +383,48 @@ static class Program
             Catalog c3 = Catalog.Scan(root, tmpField, false, null);
             Check(!c3.GeneratedThisRun && Math.Abs(c3.Find("fore-3").MinX - b.MinX) < 0.01, "settings are reused on the next run");
 
+            // only the map that changed gets prepared again
+            string other = Path.Combine(tmpField, "forest", "fore-2.smd");
+            File.Copy(Directory.EnumerateFiles(field, "fore-2.smd", SearchOption.AllDirectories).First(), other, true);
+            string oldCopy = Directory.EnumerateFiles(field, "o_fore-3.smd", SearchOption.AllDirectories).FirstOrDefault();
+            string copyTo = Path.Combine(tmpField, "forest", "o_fore-3.smd");
+            if (oldCopy != null) File.Copy(oldCopy, copyTo, true);
+            Catalog p1 = Catalog.Scan(root, tmpField, false, null);
+            Check(p1.MapsMeasured == (oldCopy != null ? 2 : 1), "two maps added: only those measured, got " + p1.MapsMeasured);
+            string fore2Png = TerrainCache.PathFor(p1, p1.Find("fore-2"));
+            DateTime fore2Time = File.GetLastWriteTimeUtc(fore2Png);
+            if (oldCopy != null)
+            {
+                TwinInfo tw = p1.Find("fore-3").Twins.FirstOrDefault(t => t.Stem.Equals("o_fore-3", StringComparison.OrdinalIgnoreCase));
+                Check(tw != null, "a newly added copy is matched to its original");
+                int dxBefore = tw?.DX ?? 0;
+                ShiftStage(copyTo, 4096, 0);
+                File.SetLastWriteTimeUtc(copyTo, DateTime.UtcNow.AddMinutes(10));
+                Catalog p2 = Catalog.Scan(root, tmpField, false, null);
+                Check(p2.MapsMeasured == 1 && p2.MapsDrawn == 1, "changing one .smd prepares just that map");
+                Check(File.GetLastWriteTimeUtc(TerrainCache.PathFor(p2, p2.Find("fore-2"))) == fore2Time, "other pictures aren't touched");
+                TwinInfo tw2 = p2.Find("fore-3").Twins.FirstOrDefault(t => t.Stem.Equals("o_fore-3", StringComparison.OrdinalIgnoreCase));
+                Check(tw2 != null && tw2.DX == dxBefore - 4096, $"its offset is updated on the map that didn't change: {dxBefore} -> {tw2?.DX}");
+                File.Delete(copyTo);
+                Catalog p3 = Catalog.Scan(root, tmpField, false, null);
+                Check(p3.Find("o_fore-3") == null || !p3.Find("o_fore-3").HasGeometry, "a removed map is forgotten");
+                Check(!File.Exists(Path.Combine(TerrainCache.Root(p3), "forest", "o_fore-3.png")), "and its picture is deleted");
+                Check(!p3.Find("fore-3").Twins.Any(t => t.Stem.Equals("o_fore-3", StringComparison.OrdinalIgnoreCase)), "and its match is cleared");
+            }
+            // a non-map .smd isn't opened again, but a new file is noticed
+            string index = Path.Combine(root, TerrainCache.FolderName, "NotMaps.txt");
+            string model = Path.Combine(tmpField, "forest", "prop.smd");
+            File.WriteAllBytes(model, new byte[300]);
+            Catalog p4 = Catalog.Scan(root, tmpField, false, null);
+            Check(File.ReadAllText(index).Contains("prop.smd") && p4.Find("prop") == null, "a non-map .smd is remembered and not listed");
+            File.Copy(other, model, true);
+            File.SetLastWriteTimeUtc(model, DateTime.UtcNow.AddMinutes(11));
+            Catalog p5 = Catalog.Scan(root, tmpField, false, null);
+            Check(p5.Find("prop") != null && p5.Find("prop").HasGeometry, "if that file becomes a map, it's picked up");
+            File.Delete(model);
+            File.Delete(other);
+            Catalog.Scan(root, tmpField, false, null);
+
             // positions set by hand survive a rebuild
             MapEntry h = c3.Find("fore-3");
             h.ManualDX = 12; h.ManualDZ = -34;
@@ -348,6 +432,16 @@ static class Program
             Catalog c4 = Catalog.Scan(root, tmpField, true, null);
             Check(c4.Find("fore-3").ManualDX == 12 && c4.Find("fore-3").ManualDZ == -34, "a minimap position set by hand survives Rebuild");
             File.Delete(Path.Combine(root, "PriTaTor.ini"));
+
+            // a folder pictures can't be saved in still works
+            string roRoot = Path.Combine(root, "scratch_readonly");
+            Directory.CreateDirectory(Path.Combine(roRoot, "GameServer", "Field"));
+            File.WriteAllText(Path.Combine(roRoot, TerrainCache.FolderName), "a file in the way");
+            Catalog ro = Catalog.Scan(roRoot, tmpField, false, null);
+            MapEntry roMap = ro.Find("fore-3");
+            Check(!ro.ImagesWritable && roMap != null && roMap.MaxX > roMap.MinX, "if pictures can't be saved, maps are still measured");
+            using (System.Drawing.Bitmap bmp = TerrainCache.Load(ro, roMap, StageMesh.Load(roMap.SmdPath), out bool savedRo))
+                Check(bmp.Width > 1000 && !savedRo, "and drawn when they open");
         }
 
         Console.WriteLine("== names from .zhoon files");

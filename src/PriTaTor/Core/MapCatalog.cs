@@ -35,6 +35,7 @@ namespace PriTaTor.Core
         // to about one pixel, so there's no automatic offset; these hold a position set by hand.
         public double? ManualDX, ManualDZ;
         public string ManualMinimap;
+        public string TerrainStamp;         // which .smd the saved terrain picture was drawn from
         public List<TwinInfo> Twins = new List<TwinInfo>();
         public bool? InServerExe;
 
@@ -54,6 +55,8 @@ namespace PriTaTor.Core
         public List<MapEntry> Maps = new List<MapEntry>();
         public string SettingsPath => Path.Combine(ServerRoot, "PriTaTor.ini");
         public bool GeneratedThisRun;
+        public bool ImagesWritable;
+        public int MapsMeasured, MapsDrawn;
 
         public MapEntry Find(string stem) => Maps.FirstOrDefault(m => string.Equals(m.Stem, stem, StringComparison.OrdinalIgnoreCase));
 
@@ -72,7 +75,7 @@ namespace PriTaTor.Core
             return null;
         }
 
-        /// <param name="force">Ignore the saved settings and measure everything again.</param>
+        /// <param name="force">Ignore what's saved and measure and draw everything again.</param>
         public static Catalog Scan(string serverRoot, string fieldRoot, bool force, Action<string, int, int> progress = null)
         {
             var c = new Catalog
@@ -82,14 +85,16 @@ namespace PriTaTor.Core
                 FieldRoot = fieldRoot ?? ReadFieldOverride(serverRoot) ?? Path.Combine(serverRoot, "Field")
             };
             progress?.Invoke("Looking for maps…", 0, 0);
-            List<string> files = c.FindStageFiles();
             var saved = Ini.Read(c.SettingsPath);
-            bool allCached = !force;
+            List<string> files = c.FindStageFiles(saved, force);
+            var changed = new List<MapEntry>();
             var entries = new List<MapEntry>();
+            var seenRel = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string f in files)
             {
                 var fi = new FileInfo(f);
                 string rel = MakeRel(c.FieldRoot, f);
+                seenRel.Add(rel);
                 var e = new MapEntry
                 {
                     Stem = Path.GetFileNameWithoutExtension(f),
@@ -103,39 +108,83 @@ namespace PriTaTor.Core
                 if (saved.TryGetValue("map " + rel, out var s))
                 {
                     ApplyManual(e, s);
-                    if (force || !ApplyCached(e, s)) allCached = false;
+                    if (force || !ApplyCached(e, s)) changed.Add(e);
                 }
-                else allCached = false;
+                else changed.Add(e);
             }
-            // a map was removed from the folder: its entry is stale
-            if (allCached && saved.Keys.Count(k => k.StartsWith("map ", StringComparison.OrdinalIgnoreCase)) != entries.Count) allCached = false;
 
             // same stem twice (two folders): the first one found keeps the plain name
             foreach (var group in entries.GroupBy(e => e.Stem, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
                 foreach (MapEntry dup in group.Skip(1))
                     dup.Stem = dup.Stem + " (" + dup.BaseFolder + ")";
 
+            // a map left the folder: forget it and its picture
+            bool removedAny = false;
+            foreach (string key in saved.Keys.Where(k => k.StartsWith("map ", StringComparison.OrdinalIgnoreCase)))
+            {
+                string rel = key.Substring(4);
+                if (seenRel.Contains(rel)) continue;
+                removedAny = true;
+                TerrainCache.DeleteFor(c, rel);
+            }
+
             c.Maps = entries;
             c.LinkSpawnFiles();
             c.LinkMinimaps();
-            if (!allCached)
+            c.ImagesWritable = TerrainCache.CanWrite(c);
+            List<MapEntry> redraw = c.ImagesWritable
+                ? entries.Where(e => e.HasGeometry && !changed.Contains(e) && !TerrainCache.IsCurrent(c, e)).ToList()
+                : new List<MapEntry>();
+            if (changed.Count + redraw.Count > 0) c.Prepare(changed, redraw, progress);
+            c.MapsMeasured = changed.Count;
+            c.MapsDrawn = c.ImagesWritable ? changed.Count + redraw.Count : 0;
+            c.GeneratedThisRun = changed.Count + redraw.Count > 0 || removedAny;
+            if (removedAny)
             {
-                c.Generate(progress);
-                c.GeneratedThisRun = true;
+                var names = new HashSet<string>(c.Maps.Select(m => m.Stem), StringComparer.OrdinalIgnoreCase);
+                foreach (MapEntry m in c.Maps) m.Twins.RemoveAll(t => !names.Contains(t.Stem));
             }
+            progress?.Invoke("Reading flags and NPCs…", 0, 0);
             c.ReadServerExeMaps();
             c.RefreshCounts();
-            c.Maps.Sort((a, b) => string.Compare(a.RelPath ?? a.Stem, b.RelPath ?? b.Stem, StringComparison.OrdinalIgnoreCase));
-            if (!allCached) c.SaveSettings();
+            c.Maps.Sort((x, y) => string.Compare(x.RelPath ?? x.Stem, y.RelPath ?? y.Stem, StringComparison.OrdinalIgnoreCase));
+            if (c.GeneratedThisRun) c.SaveSettings();
             return c;
         }
 
-        List<string> FindStageFiles()
+        /// <summary>Finds the map files, without opening any .smd whose size and date are already known.</summary>
+        List<string> FindStageFiles(Dictionary<string, Dictionary<string, string>> saved, bool force)
         {
             var r = new List<string>();
             if (!Directory.Exists(FieldRoot)) return r;
-            foreach (string f in Directory.EnumerateFiles(FieldRoot, "*.smd", SearchOption.AllDirectories))
-                if (StageMesh.IsStageFile(f)) r.Add(f);
+            string indexPath = Path.Combine(ServerRoot, TerrainCache.FolderName, "NotMaps.txt");
+            var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!force && File.Exists(indexPath))
+            {
+                try { known.UnionWith(File.ReadAllLines(indexPath, Encoding.UTF8)); }
+                catch (IOException) { }
+            }
+            var notMaps = new List<string>();
+            foreach (FileInfo f in new DirectoryInfo(FieldRoot).EnumerateFiles("*.smd", SearchOption.AllDirectories))
+            {
+                string rel = MakeRel(FieldRoot, f.FullName);
+                string stamp = f.Length + "|" + f.LastWriteTimeUtc.Ticks + "|" + rel;
+                if (!force && known.Contains(stamp)) { notMaps.Add(stamp); continue; }
+                bool isMap = !force && saved.TryGetValue("map " + rel, out var s) && s.TryGetValue("SmdSize", out string size) && s.TryGetValue("SmdTime", out string time)
+                    && size == f.Length.ToString() && time == f.LastWriteTimeUtc.Ticks.ToString();
+                if (isMap || StageMesh.IsStageFile(f.FullName)) r.Add(f.FullName);
+                else notMaps.Add(stamp);
+            }
+            if (!known.SetEquals(notMaps))
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(indexPath));
+                    File.WriteAllLines(indexPath, notMaps, new UTF8Encoding(false));
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
             return r;
         }
 
@@ -155,6 +204,7 @@ namespace PriTaTor.Core
                 e.MinX = b[0]; e.MaxX = b[1]; e.MinZ = b[2]; e.MaxZ = b[3];
                 e.Verts = int.Parse(s["Verts"]);
                 e.Faces = int.Parse(s["Faces"]);
+                if (s.TryGetValue("Terrain", out string stamp)) e.TerrainStamp = stamp;
                 e.Twins.Clear();
                 if (s.TryGetValue("Twins", out string tw) && tw.Length > 0)
                     foreach (string t in tw.Split(';'))
@@ -252,52 +302,83 @@ namespace PriTaTor.Core
             return best != null ? byNorm[best] : null;
         }
 
-        /// <summary>Measure every map: world bounds, minimap fit, moved copies.</summary>
-        void Generate(Action<string, int, int> progress)
+        /// <summary>Measure changed maps and draw their pictures, then match any moved copies among them.</summary>
+        void Prepare(List<MapEntry> changed, List<MapEntry> redraw, Action<string, int, int> progress)
         {
-            List<MapEntry> real = Maps.Where(m => m.HasGeometry).ToList();
+            var isChanged = new HashSet<MapEntry>(changed);
+            List<MapEntry> work = changed.Concat(redraw).ToList();
             var samples = new Dictionary<MapEntry, VertexSample>();
             int done = 0;
             object gate = new object();
-            Parallel.ForEach(real, new ParallelOptions { MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, m =>
+            bool writable = ImagesWritable;
+            // drawing holds a lot in memory at once, so this stays well below one thread per core
+            int threads = Math.Max(2, Math.Min(6, Environment.ProcessorCount / 2));
+            Parallel.ForEach(work, new ParallelOptions { MaxDegreeOfParallelism = threads }, m =>
             {
                 try
                 {
                     StageMesh mesh = StageMesh.Load(m.SmdPath);
-                    m.MinX = mesh.MinX; m.MaxX = mesh.MaxX; m.MinZ = mesh.MinZ; m.MaxZ = mesh.MaxZ;
-                    m.Verts = mesh.VertexCount; m.Faces = mesh.FaceCount;
-                    var sample = VertexSample.From(mesh);
-                    lock (gate) samples[m] = sample;
+                    if (isChanged.Contains(m))
+                    {
+                        m.MinX = mesh.MinX; m.MaxX = mesh.MaxX; m.MinZ = mesh.MinZ; m.MaxZ = mesh.MaxZ;
+                        m.Verts = mesh.VertexCount; m.Faces = mesh.FaceCount;
+                        var sample = VertexSample.From(mesh);
+                        lock (gate) samples[m] = sample;
+                    }
+                    if (writable) TerrainCache.Redraw(this, m, mesh);
                 }
                 catch (Exception ex) when (ex is InvalidDataException || ex is IOException || ex is ArgumentOutOfRangeException)
                 {
                     m.HasGeometry = false;
                 }
                 int n = Interlocked.Increment(ref done);
-                progress?.Invoke("Measuring maps: " + m.Stem, n, real.Count);
+                progress?.Invoke("Preparing maps: " + m.Stem, n, work.Count);
             });
-            FindTwins(samples);
+            if (changed.Count > 0) FindTwins(changed, samples, progress);
         }
 
-        void FindTwins(Dictionary<MapEntry, VertexSample> samples)
+        /// <summary>Only changed maps need comparing. What was found between unchanged maps still stands.</summary>
+        void FindTwins(List<MapEntry> changed, Dictionary<MapEntry, VertexSample> samples, Action<string, int, int> progress)
         {
-            List<MapEntry> real = samples.Keys.ToList();
-            foreach (MapEntry m in real) m.Twins.Clear();
-            for (int i = 0; i < real.Count; i++)
-                for (int j = i + 1; j < real.Count; j++)
+            List<MapEntry> real = Maps.Where(m => m.HasGeometry).ToList();
+            var changedSet = new HashSet<MapEntry>(changed);
+            var changedNames = new HashSet<string>(changed.Select(m => m.Stem), StringComparer.OrdinalIgnoreCase);
+            foreach (MapEntry m in real)
+            {
+                if (changedSet.Contains(m)) m.Twins.Clear();
+                else m.Twins.RemoveAll(t => changedNames.Contains(t.Stem));
+            }
+            Func<MapEntry, VertexSample> sampleOf = m =>
+            {
+                if (!samples.TryGetValue(m, out VertexSample v)) samples[m] = v = VertexSample.From(StageMesh.Load(m.SmdPath));
+                return v;
+            };
+            var order = new Dictionary<MapEntry, int>();
+            for (int i = 0; i < real.Count; i++) order[real[i]] = i;
+            int done = 0;
+            foreach (MapEntry a in changed)
+            {
+                progress?.Invoke("Looking for moved copies of maps", ++done, changed.Count);
+                if (!a.HasGeometry) continue;
+                foreach (MapEntry b in real)
                 {
-                    MapEntry a = real[i], b = real[j];
+                    if (a == b) continue;
+                    if (changedSet.Contains(b) && order[b] < order[a]) continue;   // that pair was already compared
                     bool sameName = string.Equals(StripOld(a.Stem), StripOld(b.Stem), StringComparison.OrdinalIgnoreCase);
                     bool sameShape = a.Verts == b.Verts && a.Faces == b.Faces
                         && Math.Abs((a.MaxX - a.MinX) - (b.MaxX - b.MinX)) < 1 && Math.Abs((a.MaxZ - a.MinZ) - (b.MaxZ - b.MinZ)) < 1;
                     if (!sameName && !sameShape) continue;
-                    if (!VertexSample.FindOffset(samples[a], samples[b], out int dx, out int dz)) continue;
+                    VertexSample sa, sb;
+                    try { sa = sampleOf(a); sb = sampleOf(b); }
+                    catch (Exception ex) when (ex is InvalidDataException || ex is IOException) { continue; }
+                    if (!VertexSample.FindOffset(sa, sb, out int dx, out int dz)) continue;
                     if (dx == 0 && dz == 0) continue;
                     bool exact = a.Verts == b.Verts && a.Faces == b.Faces;
                     // a's positions + (dx,dz) = b's positions
                     a.Twins.Add(new TwinInfo { Stem = b.Stem, DX = -dx, DZ = -dz, Exact = exact });
                     b.Twins.Add(new TwinInfo { Stem = a.Stem, DX = dx, DZ = dz, Exact = exact });
                 }
+            }
         }
 
         public static string StripOld(string s) => s.StartsWith("o_", StringComparison.OrdinalIgnoreCase) ? s.Substring(2) : s;
@@ -357,7 +438,8 @@ namespace PriTaTor.Core
         {
             var sb = new StringBuilder();
             sb.AppendLine("; PriTaTor server settings. Generated from this server's own map files, safe to delete:");
-            sb.AppendLine("; it is rebuilt whenever a map file changes. Minimap positions you set by hand are kept here.");
+            sb.AppendLine("; a map is measured again only when its file changes. Minimap positions you set by hand are kept here.");
+            sb.AppendLine("; Terrain pictures are in the PriTaTor folder beside this file, and are also safe to delete.");
             sb.AppendLine();
             sb.AppendLine("[server]");
             sb.AppendLine("Generated=" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
@@ -374,6 +456,7 @@ namespace PriTaTor.Core
                 sb.AppendLine("Centre=" + Ini.Join((m.MinX + m.MaxX) / 2, (m.MinZ + m.MaxZ) / 2));
                 sb.AppendLine("Verts=" + m.Verts);
                 sb.AppendLine("Faces=" + m.Faces);
+                if (m.TerrainStamp != null) sb.AppendLine("Terrain=" + m.TerrainStamp);
                 if (m.ManualDX != null) sb.AppendLine("MinimapManual=" + Ini.Join(m.ManualDX.Value, m.ManualDZ ?? 0));
                 if (m.ManualMinimap != null) sb.AppendLine("MinimapFile=" + m.ManualMinimap);
                 sb.AppendLine("Twins=" + string.Join(";", m.Twins.Select(t => t.Stem + "|" + t.DX + "|" + t.DZ + "|" + (t.Exact ? "1" : "0"))));

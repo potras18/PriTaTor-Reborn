@@ -44,9 +44,15 @@ namespace PriTaTor
 
             server = Path.GetFullPath(server);
             SafeWrite.ServerRoot = server;
+            // the loading window comes first, so something is on screen straight away
+            var load = new LoadingForm(true);
+            load.Show();
+            load.Update();
+            var context = new ApplicationContext();
             var form = new MainForm(server, field);
-            if (uiTest != null) UiTest.Attach(form, uiTest);
-            Application.Run(form);
+            if (uiTest != null) UiTest.Attach(form, uiTest, load);
+            form.BeginLoad(load, () => context.MainForm = form);
+            Application.Run(context);
             return UiTest.ExitCode;
         }
 

@@ -73,7 +73,7 @@ namespace PriTaTor.UI
             dlg.Dispose();
         }
 
-        public static void Attach(MainForm f, string dir)
+        public static void Attach(MainForm f, string dir, LoadingForm load)
         {
             if (Path.GetFullPath(f.ServerRoot).StartsWith(@"X:\pristontale", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Refusing to run UI checks on an original server folder.");
@@ -81,6 +81,27 @@ namespace PriTaTor.UI
             form = f;
             outDir = dir;
             Directory.CreateDirectory(dir);
+            bool loadShot = false;
+            load.Counted += (n, total) =>
+            {
+                // the first run: catch the loading window partway through
+                if (loadShot || n * 2 < total) return;
+                loadShot = true;
+                try
+                {
+                    using (var bmp = new Bitmap(load.Width, load.Height, PixelFormat.Format32bppArgb))
+                    {
+                        using (Graphics g = Graphics.FromImage(bmp))
+                        {
+                            IntPtr dc = g.GetHdc();
+                            PrintWindow(load.Handle, dc, 2);
+                            g.ReleaseHdc(dc);
+                        }
+                        bmp.Save(Path.Combine(outDir, "00_loading.png"), ImageFormat.Png);
+                    }
+                }
+                catch (Exception ex) { Log("loading shot failed: " + ex.Message); }
+            };
             bool started = false;
             f.Ready += () =>
             {
@@ -170,6 +191,15 @@ namespace PriTaTor.UI
             Application.DoEvents();
             Check(maps.Session.Entry.Stem.Equals("fore-2", StringComparison.OrdinalIgnoreCase), "fore-2 opened");
             Check(maps.Session.Flags.Count > 0, "fore-2 has flags: " + maps.Session.Flags.Count);
+            string png = TerrainCache.PathFor(form.Cat, maps.Session.Entry);
+            Check(File.Exists(png) && png.Contains(TerrainCache.FolderName), "terrain picture saved: " + png.Substring(form.ServerRoot.Length));
+            Check(c.Terrain != null && c.Terrain.Width > 1000, "and shown");
+            Check(form.Visible && Application.OpenForms.Count == 1, "the loading window has closed");
+            var openTime = System.Diagnostics.Stopwatch.StartNew();
+            await OpenMap(maps, "De-4");
+            Log("  opening a map from its saved picture took " + openTime.ElapsedMilliseconds + " ms");
+            Check(c.Notice == null, "the opening message has gone");
+            await OpenMap(maps, "fore-2");
             Shot("01_fore-2");
 
             await OpenMap(maps, "village-2");

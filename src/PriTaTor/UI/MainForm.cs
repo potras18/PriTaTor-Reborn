@@ -18,7 +18,6 @@ namespace PriTaTor.UI
         public readonly TabControl Tabs = new TabControl { Dock = DockStyle.Fill };
         readonly StatusStrip status = new StatusStrip();
         readonly ToolStripStatusLabel statusText = new ToolStripStatusLabel { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
-        readonly ToolStripProgressBar progress = new ToolStripProgressBar { Visible = false, Width = 180 };
 
         public Catalog Cat { get; private set; }
         public ServerData Data { get; private set; }
@@ -29,6 +28,7 @@ namespace PriTaTor.UI
         public event Action Ready;
         Dictionary<string, List<string>> monsterMaps;
         int lastTab;
+        Action onFirstShow;
 
         public MainForm(string serverRoot, string fieldOverride)
         {
@@ -41,13 +41,11 @@ namespace PriTaTor.UI
             StartPosition = FormStartPosition.CenterScreen;
             KeyPreview = true;
             status.Items.Add(statusText);
-            status.Items.Add(progress);
             BuildMenu();
             Controls.Add(Tabs);
             Controls.Add(status);
             Controls.Add(menu);
             MainMenuStrip = menu;
-            Shown += (s, e) => StartScan(false);
             FormClosing += (s, e) => { if (panels.Any(p => !p.ConfirmLeave())) e.Cancel = true; };
             Tabs.Selecting += TabSelecting;
         }
@@ -57,9 +55,10 @@ namespace PriTaTor.UI
             var file = new ToolStripMenuItem("&File");
             file.DropDownItems.Add(new ToolStripMenuItem("&Save", null, (s, e) => CurrentPanel()?.SaveCurrent()) { ShortcutKeys = Keys.Control | Keys.S });
             file.DropDownItems.Add(new ToolStripSeparator());
-            file.DropDownItems.Add(new ToolStripMenuItem("&Rebuild server settings", null, (s, e) => Rebuild()));
+            file.DropDownItems.Add(new ToolStripMenuItem("&Rebuild settings and terrain pictures", null, (s, e) => Rebuild()));
             file.DropDownItems.Add(new ToolStripMenuItem("Use a different &Field folder…", null, (s, e) => ChooseField()));
             file.DropDownItems.Add(new ToolStripMenuItem("Open &backups folder", null, (s, e) => OpenBackups()));
+            file.DropDownItems.Add(new ToolStripMenuItem("Open &terrain pictures folder", null, (s, e) => OpenTerrain()));
             file.DropDownItems.Add(new ToolStripSeparator());
             file.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (s, e) => Close()));
             var help = new ToolStripMenuItem("&Help");
@@ -79,12 +78,23 @@ namespace PriTaTor.UI
 
         // ----- start up -----
 
-        void StartScan(bool force, string newField = null)
+        /// <summary>Read the server behind the loading window, then show this window and close that one.</summary>
+        public void BeginLoad(LoadingForm load, Action showing)
         {
-            SetStatus(force ? "Rebuilding server settings…" : "Reading the server folder…");
-            progress.Visible = true;
-            progress.Style = ProgressBarStyle.Marquee;
-            UseWaitCursor = true;
+            onFirstShow = showing;
+            StartScan(false, null, load);
+        }
+
+        void StartScan(bool force, string newField = null, LoadingForm given = null)
+        {
+            LoadingForm load = given;
+            if (load == null)
+            {
+                load = new LoadingForm(false, this);
+                Enabled = false;
+                load.Show(this);
+                load.Report(force ? "Rebuilding server settings…" : "Reading the server folder…");
+            }
             string fieldArg = newField ?? fieldOverride;
             Task.Run(() =>
             {
@@ -93,44 +103,61 @@ namespace PriTaTor.UI
                 Exception err = null;
                 try
                 {
-                    c = Catalog.Scan(ServerRoot, fieldArg, force, (msg, n, total) => BeginInvoke((Action)(() =>
-                    {
-                        statusText.Text = msg;
-                        if (total > 0)
-                        {
-                            progress.Style = ProgressBarStyle.Continuous;
-                            progress.Maximum = total;
-                            progress.Value = Math.Min(n, total);
-                        }
-                    })));
+                    c = Catalog.Scan(ServerRoot, fieldArg, force, (msg, n, total) => load.Report(msg, n, total));
+                    load.Report("Reading monsters, NPCs and names…");
                     d = ServerData.Load(ServerRoot);
                 }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { err = ex; }
-                BeginInvoke((Action)(() => ScanDone(c, d, err)));
+                catch (Exception ex)
+                {
+                    // whatever this is, it has to reach the screen: uncaught here, the loading window would stay up forever
+                    err = ex is AggregateException a ? a.Flatten().InnerException : ex;
+                    try { File.AppendAllText(Path.Combine(ServerRoot, "PriTaTor_errors.log"), DateTime.Now + "\r\n" + ex + "\r\n\r\n"); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+                try { load.BeginInvoke((Action)(() => ScanDone(c, d, err, load))); }
+                catch (InvalidOperationException) { }   // closed with Cancel
             });
         }
 
-        void ScanDone(Catalog c, ServerData d, Exception err)
+        void ScanDone(Catalog c, ServerData d, Exception err, LoadingForm load)
         {
-            UseWaitCursor = false;
-            progress.Visible = false;
+            bool first = Cat == null;
             if (err != null)
             {
-                Ui.Error(this, "Couldn't read the server folder:\n" + err.Message);
+                if (UiTest.Running) UiTest.Fail(err);
+                else Ui.Error(load, "Couldn't read the server folder:\n\n" + err.Message + "\n\nDetails are in PriTaTor_errors.log.");
+                if (first) { Application.Exit(); return; }
+                Enabled = true;
+                load.Close();
                 SetStatus("Couldn't read the server folder.");
                 return;
             }
-            bool first = Cat == null;
             Cat = c;
             Data = d;
             monsterMaps = null;
             Text = "PriTaTor Reborn - " + ServerRoot + (string.Equals(c.FieldRoot, Path.Combine(ServerRoot, "Field"), StringComparison.OrdinalIgnoreCase) ? "" : "  (Field: " + c.FieldRoot + ")");
+            load.Report("Opening the editor…");
             if (first) BuildTabs();
             else Maps.RefreshCatalog(c);
             int linked = c.Maps.Count(m => m.Twins.Count > 0);
-            SetStatus(string.Format("{0} {1} maps, {2} with spawn data, {3} matched to a moved copy of themselves.",
-                c.GeneratedThisRun ? "Settings generated for this server:" : "Settings loaded:",
-                c.Maps.Count(m => m.HasGeometry), c.Maps.Count(m => m.HasSpawnData), linked));
+            string done = string.Format("{0} maps, {1} with spawn data, {2} matched to a moved copy of themselves.",
+                c.Maps.Count(m => m.HasGeometry), c.Maps.Count(m => m.HasSpawnData), linked);
+            int prepared = Math.Max(c.MapsMeasured, c.MapsDrawn);
+            string how = prepared > 0 ? "  Just prepared: " + prepared + "." : "";
+            string warn = c.ImagesWritable ? "" : "  Terrain pictures can't be saved in this folder, so maps are drawn as they open.";
+            SetStatus(done + how + warn);
+            // items are only needed for shops, so read them quietly now and shops open straight away
+            Task.Run(() => d.Items.Value);
+            if (first)
+            {
+                onFirstShow?.Invoke();
+                Show();
+                Activate();
+                Refresh();
+            }
+            else Enabled = true;
+            load.Close();
             Ready?.Invoke();
         }
 
@@ -205,6 +232,14 @@ namespace PriTaTor.UI
         {
             string p = Path.Combine(ServerRoot, SafeWrite.BackupFolderName);
             if (!Directory.Exists(p)) { Ui.Error(this, "Nothing has been backed up yet."); return; }
+            Process.Start("explorer.exe", "\"" + p + "\"");
+        }
+
+        void OpenTerrain()
+        {
+            if (Cat == null) return;
+            string p = TerrainCache.Root(Cat);
+            if (!Directory.Exists(p)) { Ui.Error(this, "No terrain pictures have been saved yet."); return; }
             Process.Start("explorer.exe", "\"" + p + "\"");
         }
 

@@ -5,7 +5,7 @@ A Priston Tale server manager and map editor. One exe, nothing to install.[/CENT
 
 PriTaTor has been a favourite in the PT scene since 2008, but its map editor needed each map lined up by hand before it worked. PriTaTor Reborn is a new tool, written from scratch, that keeps the idea and removes the setup.
 
-Put the exe in your server folder and run it. It reads your own map files, works out where every map sits and writes its own settings file. If a map file changes, it updates by itself.
+Put the exe in your server folder and run it. It reads your own map files, works out where every map sits and writes its own settings file. A loading window shows what it's doing. It only prepares each map once, so later starts are quick, and if a map file changes it updates just that map by itself.
 
 [B]Map editor[/B]
 [LIST]
@@ -14,7 +14,7 @@ Put the exe in your server folder and run it. It reads your own map files, works
 [*]Turn NPCs with a handle or by typing a bearing, so they face the right way
 [*]New NPCs land on the ground at the height of the terrain
 [*]Edit each map's monster list, spawn rates and bosses
-[*]Terrain is drawn from the map itself, so maps with no minimap work too
+[*]Terrain is drawn from the map itself, so maps with no minimap work too, and the pictures are saved as PNGs you can use yourself
 [/LIST]
 
 [IMG]https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/npc-editor.jpg[/IMG]

@@ -412,16 +412,20 @@ namespace PriTaTor.UI
         {
             int token = ++loadToken;
             Cursor = Cursors.WaitCursor;
+            Canvas.Notice = "Opening " + m.Stem + "…";
+            Canvas.Invalidate();
+            Canvas.Update();
             Catalog c = cat;
             Task.Run(() =>
             {
                 MapSession s = null;
                 Bitmap terrain = null, minimap = null;
                 Exception err = null;
+                bool savedPicture = false;
                 try
                 {
                     s = new MapSession(c, m);
-                    if (s.Mesh != null) terrain = TerrainRaster.Build(s.Mesh, 2048).ToBitmap();
+                    if (s.Mesh != null) terrain = TerrainCache.Load(c, m, s.Mesh, out savedPicture);
                     if (m.MinimapPath != null)
                     {
                         try { minimap = GameImage.Load(m.MinimapPath); }
@@ -431,8 +435,11 @@ namespace PriTaTor.UI
                 catch (Exception ex) when (ex is InvalidDataException || ex is IOException || ex is UnauthorizedAccessException) { err = ex; }
                 BeginInvoke((Action)(() =>
                 {
-                    Cursor = Cursors.Default;
+                    if (savedPicture) TrySaveSettings();
                     if (token != loadToken) { terrain?.Dispose(); minimap?.Dispose(); return; }
+                    Cursor = Cursors.Default;
+                    Canvas.Notice = null;
+                    Canvas.Invalidate();
                     if (err != null) { Ui.Error(this, "Couldn't open " + m.Stem + ":\n" + err.Message); return; }
                     Canvas.Terrain?.Dispose();
                     Canvas.Minimap?.Dispose();

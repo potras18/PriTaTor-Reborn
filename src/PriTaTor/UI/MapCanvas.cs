@@ -23,6 +23,8 @@ namespace PriTaTor.UI
         public CanvasTool Tool = CanvasTool.Select;
         public readonly HashSet<int> SelFlags = new HashSet<int>(), SelNpcs = new HashSet<int>();
         public Func<NpcRecord, string> NpcLabel = n => n.Name;
+        /// <summary>A message over the map, while it's busy.</summary>
+        public string Notice;
 
         public event Action SelectionChangedByUser;
         public event Action EditCommitted;
@@ -159,7 +161,8 @@ namespace PriTaTor.UI
             if (baseBuf != null) g.DrawImageUnscaled(baseBuf, 0, 0);
             if (Session == null)
             {
-                TextRenderer.DrawText(g, "Pick a map on the left", Font, ClientRectangle, Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                if (Notice == null) TextRenderer.DrawText(g, "Pick a map on the left", Font, ClientRectangle, Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                DrawNotice(g);
                 return;
             }
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -187,6 +190,7 @@ namespace PriTaTor.UI
                     g.DrawRectangle(pen, rubber);
                 }
             DrawScaleBar(g);
+            DrawNotice(g);
             if (Tool != CanvasTool.Select)
             {
                 string msg = Tool == CanvasTool.AddFlag ? "Click to place a monster flag. Esc to stop."
@@ -199,6 +203,16 @@ namespace PriTaTor.UI
                     g.DrawString(msg, Font, Brushes.White, 13, 11);
                 }
             }
+        }
+
+        void DrawNotice(Graphics g)
+        {
+            if (Notice == null) return;
+            SizeF sz = g.MeasureString(Notice, Font);
+            float x = (Width - sz.Width) / 2, y = (Height - sz.Height) / 2;
+            using (var b = new SolidBrush(Color.FromArgb(200, 0, 0, 0)))
+                g.FillRectangle(b, x - 14, y - 9, sz.Width + 28, sz.Height + 18);
+            g.DrawString(Notice, Font, Brushes.White, x, y);
         }
 
         void DrawFlag(Graphics g, PointF p, SpawnFlag f, bool labels, MapEntry e)

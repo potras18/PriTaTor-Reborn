@@ -7,7 +7,8 @@ A server manager and map editor for Priston Tale. One exe, nothing to install.
 ## Using it
 
 1. Copy `PriTaTorReborn.exe` into your game server folder, next to `GameServer` and `Field`.
-2. Run it. The first run measures every map on this server and writes `PriTaTor.ini` beside the exe.
+2. Run it. The first run prepares every map on this server, with a loading window showing how far along it is.
+   Later starts skip this, and only a map whose `.smd` changed gets prepared again.
 3. Reload the server after saving: it only reads these files when it starts.
 
 Before any file is overwritten, the old one is copied to `PriTaTor_Backups\<date and time>\`.
@@ -53,12 +54,14 @@ Nothing about map positions is built into the program. Each map's position comes
 file: the bounds of the vertices its faces use, in the game's world coordinates. Flags and NPCs are stored in those same
 coordinates, so they line up by construction.
 
-- **Terrain layer:** drawn from the `.smd` itself, so it's exact, and it's there even for maps with no minimap.
+- **Terrain layer:** drawn from the `.smd` itself, so it's exact, and it's there even for maps with no minimap. Each picture
+  is saved as a PNG in `PriTaTor\Terrain\`, in the same folders as `Field\`. They're safe to delete, and get redrawn.
 - **Minimap layer:** `Field\map\*.tga` stretched to the map's bounds. This matches the old tool's hand calibrations
   to a median of 31 world units, about one pixel. Minimaps are hand-made art, so a few sit slightly off: **Align minimap**
   lets you nudge one by hand, which moves the picture only, never your flags.
 
-`PriTaTor.ini` is rebuilt automatically when a map file changes. **File > Rebuild server settings** forces it.
+A map is measured and drawn again automatically when its file changes. **File > Rebuild settings and terrain pictures**
+forces it for every map.
 
 ## Moved maps
 
