@@ -242,6 +242,23 @@ namespace PriTaTor.UI
             if (!Npcs.SelectByFile(fileName)) SetStatus("No .npc file called " + fileName + " in GameServer\\NPC.");
         }
 
+        /// <summary>A name was edited: read them again so everywhere shows the new one.</summary>
+        public void NamesChanged(DataFilePanel from)
+        {
+            string root = ServerRoot;
+            Task.Run(() => ServerData.Load(root)).ContinueWith(t =>
+            {
+                if (t.IsFaulted || IsDisposed) return;
+                BeginInvoke((Action)(() =>
+                {
+                    Data = t.Result;
+                    Maps.DataChanged(Data);
+                    foreach (DataFilePanel p in new[] { Monsters, Npcs, Items, Names })
+                        if (p != from) p.ReloadNames();
+                }));
+            });
+        }
+
         public void SetStatus(string s) => statusText.Text = s;
 
         public void SetUnsavedMark()

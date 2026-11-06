@@ -35,6 +35,7 @@ namespace PriTaTor.UI
         // NPC tab
         readonly ListView npcList = MakeList(("#", 34), ("Name", 150), ("File", 110), ("On", 30));
         readonly TextBox npcName = new TextBox { Width = 230 }, npcModel = new TextBox { Width = 230 };
+        readonly Label npcShown = Ui.Label("");
         readonly ComboBox npcFile = new ComboBox { Width = 230, DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems };
         readonly TextBox npcX = new TextBox { Width = 80 }, npcY = new TextBox { Width = 80 }, npcZ = new TextBox { Width = 80 };
         readonly NumericUpDown npcAngle = new NumericUpDown { Minimum = -1, Maximum = 360, DecimalPlaces = 1, Width = 70, Increment = 5 };
@@ -197,6 +198,8 @@ namespace PriTaTor.UI
             // --- NPCs ---
             var tn = new TabPage("NPCs");
             var nT = Ui.Table(2);
+            nT.Controls.Add(Ui.Label("Shown as"));
+            nT.Controls.Add(npcShown);
             nT.Controls.Add(Ui.Label("Name"));
             nT.Controls.Add(npcName);
             nT.Controls.Add(Ui.Label("NPC file"));
@@ -226,7 +229,8 @@ namespace PriTaTor.UI
             nBtns.Controls.Add(Ui.Button("Duplicate", (s, e) => DuplicateSelected()));
             nBtns.Controls.Add(Ui.Button("Delete", (s, e) => DeleteSelected()));
             nBtns.Controls.Add(Ui.Button("Open .npc", (s, e) => OpenNpcFile()));
-            npcEditor.Height = 290;
+            nBtns.Controls.Add(Ui.Button("Edit shop…", (s, e) => OpenShop()));
+            npcEditor.Height = 330;
             npcEditor.AutoScroll = true;
             nBtns.Dock = DockStyle.Top;
             nT.Dock = DockStyle.Top;
@@ -258,7 +262,7 @@ namespace PriTaTor.UI
                 t.KeyDown += EnterApplies;
             }
             actorGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "m", HeaderText = "Monster", FillWeight = 55 });
-            actorGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "e", HeaderText = "English", ReadOnly = true, FillWeight = 45, DefaultCellStyle = { ForeColor = Color.Gray } });
+            actorGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "e", HeaderText = "Shown as", ReadOnly = true, FillWeight = 45, DefaultCellStyle = { ForeColor = Color.Gray } });
             actorGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "p", HeaderText = "Rate", FillWeight = 18 });
             bossGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "b", HeaderText = "Boss", FillWeight = 40 });
             bossGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "g", HeaderText = "Guards", FillWeight = 40 });
@@ -458,8 +462,8 @@ namespace PriTaTor.UI
         {
             string file = Path.GetFileName(n.NpcFile ?? "");
             DataItem d = data?.Npcs.FirstOrDefault(i => string.Equals(i.FileName, file, StringComparison.OrdinalIgnoreCase));
-            string en = d?.English;
-            return !string.IsNullOrWhiteSpace(en) ? en : n.Name;
+            string local = d?.LocalName;
+            return !string.IsNullOrWhiteSpace(local) ? local : n.Name;
         }
 
         // ----- tool + buttons -----
@@ -606,6 +610,7 @@ namespace PriTaTor.UI
             NpcRecord n = OneNpc();
             syncing = true;
             foreach (Control c in new Control[] { npcName, npcModel, npcFile, npcX, npcY, npcZ, npcAngle, npcActive }) c.Enabled = n != null;
+            npcShown.Text = n != null ? NpcDisplayName(n) : "";
             npcName.Text = n?.Name ?? "";
             npcModel.Text = n?.Model ?? "";
             npcFile.Text = n?.NpcFile ?? "";
@@ -695,6 +700,39 @@ namespace PriTaTor.UI
             if (n == null) return;
             host.OpenNpcByFile(Path.GetFileName(n.NpcFile));
         }
+
+        void OpenShop()
+        {
+            NpcRecord n = OneNpc();
+            if (n == null) { Ui.Error(this, "Select an NPC first."); return; }
+            string path = Path.Combine(cat.ServerRoot, n.NpcFile);
+            if (!File.Exists(path)) { Ui.Error(this, "This NPC's file isn't there:\n" + path); return; }
+            if (host.Npcs.HasUnsaved && string.Equals(host.Npcs.Doc?.Path, path, StringComparison.OrdinalIgnoreCase))
+            {
+                Ui.Error(this, "This NPC's file has unsaved changes on the NPCs tab. Save them there first.");
+                return;
+            }
+            using (var d = new ShopDialog(path, () => data, NpcDisplayName(n)))
+            {
+                d.ShowDialog(this);
+                if (d.Saved)
+                {
+                    host.SetStatus("Saved " + Path.GetFileName(path) + ". Reload the server for this to take effect.");
+                    host.Npcs.FileSavedElsewhere(path);
+                }
+            }
+        }
+
+        /// <summary>Names changed on disk: show the new ones.</summary>
+        public void DataChanged(ServerData d)
+        {
+            data = d;
+            if (Session == null) return;
+            RefreshLists();
+            FillSpm();
+        }
+
+        public string TestNpcName(NpcRecord n) => NpcDisplayName(n);
 
         void CenterOnSelection()
         {
@@ -950,7 +988,7 @@ namespace PriTaTor.UI
         string EnglishOf(string name)
         {
             DataItem m = data?.Monsters.FirstOrDefault(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase));
-            return m?.English ?? "";
+            return m?.LocalName ?? "";
         }
 
         bool KnownMonster(string name) => data == null || string.IsNullOrEmpty(name) || data.Monsters.Any(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase));

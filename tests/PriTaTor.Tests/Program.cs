@@ -350,6 +350,89 @@ static class Program
             File.Delete(Path.Combine(root, "PriTaTor.ini"));
         }
 
+        Console.WriteLine("== names from .zhoon files");
+        {
+            Func<string, string> z = s => LocalName.FromZhoon(Encoding.ASCII.GetBytes(s));
+            Check(z("//x\r\n\r\n*E_NAME\t\t\"Arcane Ring\"\r\n") == "Arcane Ring", "*E_NAME");
+            Check(z("*J_NAME \"Hopy\"") == "Hopy" && z("*B_NAME\t\"Hopy\"") == "Hopy" && z("*E_Name \"Hopy\"") == "Hopy", "any language letter, any case");
+            Check(z("*E_NAME  \"  Spaced Out \"") == "Spaced Out", "spaces inside the quotes are trimmed");
+            Check(z("*E_NAME Plain Name") == "Plain Name", "no quotes");
+            Check(z("//*E_NAME \"Old\"\r\n*E_NAME \"New\"") == "New", "commented lines are skipped");
+            Check(z("*E_CHAT \"Hello\"") == "", "dialogue isn't a name");
+            Func<int, string, string, byte[]> mk = (page, key, text) =>
+                Encoding.ASCII.GetBytes("*" + key + " \"").Concat(Encoding.GetEncoding(page).GetBytes(text)).Concat(new[] { (byte)'"' }).ToArray();
+            Check(LocalName.FromZhoon(mk(932, "J_NAME", "ホピー")) == "ホピー", "Japanese decodes");
+            Check(LocalName.FromZhoon(mk(1252, "B_NAME", "Poção")) == "Poção", "Brazilian decodes");
+            Check(LocalName.FromZhoon(mk(949, "K_NAME", "호피")) == "호피", "Korean decodes");
+            Check(LocalName.FromZhoon(mk(950, "T_NAME", "導遊")) == "導遊", "Traditional Chinese decodes");
+            string dragoman = Path.Combine(root, "GameServer", "NPC", "name", "ricarden-dragoman.zhoon");
+            if (File.Exists(dragoman)) Console.WriteLine("  ricarden-dragoman.zhoon reads as: " + LocalName.FromZhoon(File.ReadAllBytes(dragoman)));
+
+            var sd = ServerData.Load(root);
+            Func<List<DataItem>, string> stats = l => $"{l.Count(x => !string.IsNullOrEmpty(x.LocalName))} of {l.Count} named";
+            Console.WriteLine("  NPCs: " + stats(sd.Npcs) + ", monsters: " + stats(sd.Monsters));
+            Check(sd.Npcs.All(x => !string.IsNullOrEmpty(x.LocalName)), "every NPC has a name");
+            int koreanNpc = sd.Npcs.Count(x => x.LocalName.Any(ch => ch >= 0xAC00 && ch <= 0xD7A3));
+            int koreanMon = sd.Monsters.Count(x => (x.LocalName ?? "").Any(ch => ch >= 0xAC00 && ch <= 0xD7A3));
+            Console.WriteLine($"  still Korean: {koreanNpc} NPCs, {koreanMon} monsters");
+            Check(koreanNpc == 0, "no NPC name is Korean");
+            Console.WriteLine("  non-English NPC names: " + string.Join(", ", sd.Npcs.Where(x => x.LocalName.Any(ch => ch > 127)).Select(x => x.FileName + "=" + x.LocalName)));
+        }
+
+        Console.WriteLine("== item catalog");
+        {
+            ItemCatalog ic = ItemCatalog.Load(Path.Combine(root, "GameServer", "OpenItem"));
+            Console.WriteLine($"  {ic.Items.Count} items; other: " + string.Join(", ", ic.Items.Where(i => i.Group == "Other").GroupBy(i => i.Category).Select(g => g.Key + "(" + g.Count() + ")")));
+            Check(ic.Items.Count == ic.ByCode.Count && ic.Items.Count > 1300, "one row per code");
+            Check(ic.Items.All(i => i.Code == i.Code.ToLowerInvariant() && !i.Code.Contains('"')), "codes are clean");
+            Check(ic.Items.Count(i => i.Group == "Other") == 0, "every item prefix on this server has a category");
+            Check(ic.ByCode["wa108"].Category == "Axes" && ic.ByCode["ws108"].Category == "Bows" && ic.ByCode["ws210"].Category == "Swords" && ic.ByCode["oa101"].Category == "Amulets" && ic.ByCode["oa201"].Category == "Bracelets", "categories");
+            Check(ic.ByCode["pl101"].Group == "Potions" && !string.IsNullOrEmpty(ic.ByCode["pl101"].Name), "potion: " + ic.ByCode["pl101"].Name);
+            Check(ic.Items.Count(i => i.Name.Any(ch => ch >= 0xAC00 && ch <= 0xD7A3)) < 40, "almost all item names are localised, Korean left: " + ic.Items.Count(i => i.Name.Any(ch => ch >= 0xAC00 && ch <= 0xD7A3)));
+        }
+
+        Console.WriteLine("== shop lines");
+        {
+            Func<string, TextDoc> mk = t => { var d = new TextDoc(); d.Parse(Cp949.Encode(t)); return d; };
+            string K = NpcShop.Keys[0];
+            string src = "//c\r\n" + K + "\twa104 wa105\twc104 wc105\t\tWP106 //hi\r\n*연결파일 \"x\"\r\n";
+            TextDoc d1 = mk(src);
+            List<string> r = NpcShop.Read(d1, K);
+            Check(r.Count == 5 && r[4] == "WP106", "reads codes, ignores the comment");
+            NpcShop.Write(d1, K, r);
+            Check(Cp949.Enc.GetString(d1.ToBytes()) == src, "writing the same list changes nothing, even in another case form");
+            NpcShop.Write(d1, K, new[] { "wa104", "wa105", "wc105", "WP106" });
+            Check(d1.Lines[1].Text.Contains("wa104 wa105 wc105\t\tWP106"), "removing takes only that code and the gap before it: " + d1.Lines[1].Text.Replace("\t", "<T>"));
+            Check(d1.Lines[1].Text.Contains("//hi"), "comment kept");
+            NpcShop.Write(d1, K, new[] { "wa104", "wa105", "wc105", "WP106", "ws101" });
+            Check(NpcShop.Read(d1, K).Last() == "ws101", "adding goes on the end");
+            NpcShop.Write(d1, K, new[] { "wa105", "wa104", "wc105", "WP106", "ws101" });
+            Check(NpcShop.Read(d1, K).SequenceEqual(new[] { "wa105", "wa104", "wc105", "WP106", "ws101" }), "reordering");
+            NpcShop.Write(d1, K, new string[0]);
+            Check(d1.First(K).StartsWith(NpcShop.Nothing) && NpcShop.Read(d1, K).Count == 0, "removing everything writes 없음");
+            NpcShop.Write(d1, K, new[] { "wa101" });
+            Check(!d1.First(K).Contains(NpcShop.Nothing) && NpcShop.Read(d1, K)[0] == "wa101", "adding replaces 없음");
+            TextDoc d2 = mk(K + " wa101 wa102\r\n" + K + " wa103\r\n");
+            NpcShop.Write(d2, K, new[] { "wa101", "wa103" });
+            Check(d2.Lines.Count == 2 && NpcShop.Read(d2, K).SequenceEqual(new[] { "wa101", "wa103" }), "shops split over two lines stay split");
+            NpcShop.Write(d2, K, new[] { "wa101" });
+            Check(d2.Lines.Count == 1, "an emptied second line is removed");
+            TextDoc d3 = mk("*이름 \"A\"\r\n*연결파일 \"x\"\r\n");
+            NpcShop.Write(d3, K, new[] { "wa101" });
+            Check(d3.Lines[1].Text.StartsWith(K) && d3.Lines[2].Text.StartsWith("*연결파일"), "an NPC with no shop gets one above the link line");
+            int shopFiles = 0, changed = 0;
+            foreach (string f in Directory.EnumerateFiles(Path.Combine(root, "GameServer", "NPC"), "*.npc"))
+            {
+                byte[] orig = File.ReadAllBytes(f);
+                TextDoc nd = new TextDoc();
+                nd.Parse(orig);
+                shopFiles++;
+                foreach (string key in NpcShop.Keys) NpcShop.Write(nd, key, NpcShop.Read(nd, key));
+                if (!nd.ToBytes().SequenceEqual(orig)) changed++;
+            }
+            Check(changed == 0, $"reading and rewriting {shopFiles} NPC shops changes no bytes");
+        }
+
         Console.WriteLine("== safe write");
         {
             string tmp = Path.Combine(root, "safewrite_test.txt");

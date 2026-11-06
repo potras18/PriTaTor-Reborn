@@ -41,10 +41,12 @@ namespace PriTaTor.UI
         readonly Label usedLabel = new Label { Dock = DockStyle.Bottom, Height = 22, Padding = new Padding(3, 3, 0, 0), AutoEllipsis = true };
         readonly ComboBox addKey = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 230 };
         Button saveBtn;
+        ShopEditor shop;
+        TabPage shopPage;
 
         List<DataItem> items = new List<DataItem>();
         TextDoc doc;
-        bool rawChanged, syncing;
+        bool rawChanged, syncing, shopDriven;
         ListViewItem currentItem;
         public DataItem Current => currentItem?.Tag as DataItem;
         bool loaded;
@@ -60,7 +62,7 @@ namespace PriTaTor.UI
             this.usedBy = usedBy;
 
             list.Columns.Add("File", 170);
-            list.Columns.Add("English", 140);
+            list.Columns.Add("Name", 140);
             list.Columns.Add("Korean", 110);
             if (extraTitle != null) list.Columns.Add(extraTitle, 70);
 
@@ -78,6 +80,14 @@ namespace PriTaTor.UI
             tr.Controls.Add(raw);
             views.TabPages.Add(tf);
             views.TabPages.Add(tr);
+            if (schema == Schema.Npc)
+            {
+                shop = new ShopEditor(() => host.Data) { Dock = DockStyle.Fill };
+                shop.Changed += ShopChanged;
+                shopPage = new TabPage("Shop");
+                shopPage.Controls.Add(shop);
+                views.TabPages.Add(shopPage);
+            }
             views.Selecting += (s, e) => { if (!SyncViews()) e.Cancel = true; };
 
             var top = Ui.Row();
@@ -143,8 +153,8 @@ namespace PriTaTor.UI
             currentItem = null;
             foreach (DataItem d in items)
             {
-                if (q.Length > 0 && (d.FileName + " " + d.Name + " " + d.English + " " + d.Extra).IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0) continue;
-                var row = new List<string> { d.FileName, d.English ?? "", d.Name ?? "" };
+                if (q.Length > 0 && (d.FileName + " " + d.Name + " " + d.LocalName + " " + d.Extra).IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                var row = new List<string> { d.FileName, d.LocalName ?? "", d.Name ?? "" };
                 if (extraTitle != null) row.Add(d.Extra ?? "");
                 var it = new ListViewItem(row.ToArray()) { Tag = d };
                 list.Items.Add(it);
@@ -204,6 +214,36 @@ namespace PriTaTor.UI
             FillFromDoc();
         }
 
+        void ShopChanged()
+        {
+            shopDriven = true;
+            FillFromDoc();
+            shopDriven = false;
+        }
+
+        /// <summary>Another window saved this file: show it, unless there are edits here to keep.</summary>
+        public void FileSavedElsewhere(string path)
+        {
+            if (doc != null && !HasUnsaved && string.Equals(doc.Path, path, StringComparison.OrdinalIgnoreCase)) OpenFile(path);
+        }
+
+        /// <summary>Read the list again so it shows changed names.</summary>
+        public void ReloadNames()
+        {
+            if (!loaded || HasUnsaved) return;
+            Task.Run(() =>
+            {
+                var all = new List<DataItem>();
+                foreach (string d in dirs) all.AddRange(ServerData.ReadFolder(d, exts, extraKey));
+                BeginInvoke((Action)(() =>
+                {
+                    items = all;
+                    FillList();
+                }));
+            });
+            shop?.ResetCatalog();
+        }
+
         void FillFromDoc()
         {
             syncing = true;
@@ -230,6 +270,7 @@ namespace PriTaTor.UI
                 if (addKey.Items.Count > 0) addKey.SelectedIndex = 0;
             }
             syncing = false;
+            if (shop != null && !shopDriven) shop.Bind(doc);
             UpdateButtons();
         }
 
@@ -331,7 +372,7 @@ namespace PriTaTor.UI
                 Path = path,
                 FileName = Path.GetFileName(path),
                 Name = Tokens.Unquote(nd.First("*이름")),
-                English = Tokens.Unquote(nd.First("*Name", "*NAME", "*E_NAME")),
+                LocalName = LocalName.For(path, nd),
                 Extra = extraKey != null ? Tokens.Unquote(nd.First(extraKey)) : ""
             };
             items.RemoveAll(i => string.Equals(i.Path, path, StringComparison.OrdinalIgnoreCase));
@@ -387,18 +428,22 @@ namespace PriTaTor.UI
                 if (doc.ChangedOnDisk() && MessageBox.Show(this, Path.GetFileName(doc.Path) + " changed on disk since you opened it. Overwrite?", "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
                 bool wrote = SafeWrite.Save(doc.Path, doc.ToBytes());
                 doc.MarkSaved();
+                bool namesChanged = false;
                 DataItem cur = Current;
                 if (cur != null)
                 {
                     cur.Name = Tokens.Unquote(doc.First("*이름"));
-                    cur.English = Tokens.Unquote(doc.First("*Name", "*NAME", "*E_NAME"));
+                    string oldLocal = cur.LocalName;
+                    cur.LocalName = LocalName.For(doc.Path, doc);
+                    namesChanged = schema == Schema.Zhoon || oldLocal != cur.LocalName;
                     cur.Extra = extraKey != null ? Tokens.Unquote(doc.First(extraKey)) : "";
-                    currentItem.SubItems[1].Text = cur.English ?? "";
+                    currentItem.SubItems[1].Text = cur.LocalName ?? "";
                     currentItem.SubItems[2].Text = cur.Name ?? "";
                     if (extraTitle != null) currentItem.SubItems[3].Text = cur.Extra ?? "";
                 }
                 host.SetStatus(wrote ? "Saved " + Path.GetFileName(doc.Path) + ". Reload the server for this to take effect." : "Nothing needed saving.");
                 UpdateButtons();
+                if (namesChanged) host.NamesChanged(this);
             }
             catch (IOException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
             catch (UnauthorizedAccessException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
@@ -418,6 +463,8 @@ namespace PriTaTor.UI
 
         // for automated checks
         public DataGridView Grid => grid;
+        public ShopEditor Shop => shop;
+        public void TestShowShop() => views.SelectedTab = shopPage;
         public TextDoc Doc => doc;
     }
 }

@@ -23,14 +23,23 @@ namespace PriTaTor.Core
         public SchemaField Lookup(string key)
         {
             if (byKey == null) Index();
-            byKey.TryGetValue(key, out SchemaField f);
+            if (byKey.TryGetValue(key, out SchemaField f)) return f;
+            if (this == Zhoon)
+            {
+                // the letter is the language, and it varies between servers
+                string k = key.ToUpperInvariant();
+                if (k.EndsWith("_NAME", StringComparison.Ordinal)) byKey.TryGetValue("*E_NAME", out f);
+                else if (k.EndsWith("_CHAT", StringComparison.Ordinal)) byKey.TryGetValue("*E_CHAT", out f);
+            }
             return f;
         }
 
         public int OrderOf(string key)
         {
             if (byKey == null) Index();
-            return order.TryGetValue(key, out int i) ? i : int.MaxValue;
+            if (order.TryGetValue(key, out int i)) return i;
+            SchemaField f = Lookup(key);
+            return f != null && order.TryGetValue(f.Key, out i) ? i : int.MaxValue;
         }
 
         void Index()
@@ -286,8 +295,8 @@ namespace PriTaTor.Core
 
         public static readonly Schema Zhoon = Make("Zhoon", @"
 # Text
-*E_NAME|English name|Quoted text
-*E_CHAT|English dialogue|Quoted text. Can repeat.
+*E_NAME|Name|Quoted text. The letter before _NAME is the language.
+*E_CHAT|Dialogue|Quoted text. Can repeat.
 ");
     }
 }

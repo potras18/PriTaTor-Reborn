@@ -34,11 +34,13 @@ Put the exe in your server folder and run it. It reads your own map files, works
 [*]Monsters, NPCs, items and name files as labelled English fields, or as raw text
 [*]A text editor for any settings file in the server folder
 [*]See which maps a monster spawns on
+[*]NPC shop editor: pick what an NPC sells by category and name, with no item codes to type
+[*]Names come from your .zhoon files, whichever language letter they use (E_NAME, J_NAME, B_NAME and so on)
 [*]Korean text is safe: saving only changes the lines you edited
 [*]Every save keeps a backup of the old file
 [/LIST]
 
-[IMG]https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/data-editor.jpg[/IMG]
+[IMG]https://raw.githubusercontent.com/sungam3d/PriTaTor-Reborn/main/docs/images/shop-editor.jpg[/IMG]
 
 [B]Download and source[/B]
 Download: [URL]https://github.com/sungam3d/PriTaTor-Reborn/releases/latest[/URL]

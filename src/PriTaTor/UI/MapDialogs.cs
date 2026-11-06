@@ -50,7 +50,7 @@ namespace PriTaTor.UI
             list.BeginUpdate();
             list.Items.Clear();
             foreach (DataItem d in all)
-                if (q.Length == 0 || (d.FileName + " " + d.Name + " " + d.English).IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+                if (q.Length == 0 || (d.FileName + " " + d.Name + " " + d.LocalName).IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
                     list.Items.Add(d);
             list.EndUpdate();
             if (list.Items.Count > 0) list.SelectedIndex = 0;

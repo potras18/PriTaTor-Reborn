@@ -18,6 +18,7 @@ Before any file is overwritten, the old one is copied to `PriTaTor_Backups\<date
 |---|---|
 | **Maps** | Monster flags and NPCs on the map: move, add, delete and turn. Each map's monster list and bosses. |
 | **Monsters, NPCs, Items** | `GameServer\Monster`, `NPC` and `OpenItem` files, as labelled fields or raw text. |
+| **NPCs > Shop** | What an NPC sells, picked by category and name, with no item codes to type. Also on the Maps tab: **Edit shop…**. |
 | **Names** | The `.zhoon` files holding English names and dialogue. |
 | **Text files** | Any text file in the server folder. |
 
@@ -32,6 +33,19 @@ Before any file is overwritten, the old one is copied to `PriTaTor_Backups\<date
 | Add | Add flag / Add NPC on the toolbar, or right-click the map. |
 | Delete, duplicate | Del, Ctrl+D |
 | Undo, redo, save | Ctrl+Z, Ctrl+Y, Ctrl+S |
+
+## Names
+
+Names come from each file's linked `.zhoon` file, such as `*E_NAME "Blacksmith Goden"`. The letter before `_NAME` is the
+language and can be anything, so `*J_NAME`, `*B_NAME` and the rest all work. If a file has no linked name, its `*Name` line
+is used instead.
+
+## NPC shops
+
+Each of the three sections (`*무기판매`, `*방어구판매`, `*잡화판매`) is a tab in the game's shop window, and any item can go on
+any tab. Pick a category on the left, or search by name or code, and double-click to add. Saving only changes the codes you
+changed. An item with no file on this server shows in red. The biggest tab on the test server holds 31 items, so the editor
+warns past 32. That limit hasn't been confirmed in game.
 
 ## How maps line up
 

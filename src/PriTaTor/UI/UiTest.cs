@@ -359,6 +359,101 @@ namespace PriTaTor.UI
             Application.DoEvents();
             Shot("10_ice_2");
 
+            Log("== names from .zhoon files");
+            DataItem equip = form.Data.Npcs.First(x => x.FileName.Equals("ricarden-equip1.NPC", StringComparison.OrdinalIgnoreCase));
+            Log("  ricarden-equip1.NPC shows as: " + equip.LocalName + "  (*Name in the file: Abaranbo)");
+            Check(equip.LocalName.Length > 0 && equip.LocalName != "Abaranbo", "NPC name comes from its .zhoon file");
+            await OpenMap(maps, "village-2");
+            Pump();
+            int shownKorean = maps.Session.Npcs.Count(x => maps.TestNpcName(x).Any(ch => ch >= 0xAC00 && ch <= 0xD7A3));
+            Log("  village-2 NPCs still shown in Korean: " + shownKorean + " of " + maps.Session.Npcs.Count);
+            Check(shownKorean == 0, "no NPC on village-2 shows a Korean name");
+            FindSide(maps).SelectedIndex = 1;
+            Pump();
+            Shot("23_npc_names");
+            c.ShowNames = true;
+            c.InvalidateLayers();
+            Pump();
+            Shot("24_npc_names_on_map");
+            c.ShowNames = false;
+
+            Log("== shop editor");
+            SelectTab(form.Npcs);
+            await WaitForList(form.Npcs);
+            Check(form.Npcs.SelectByFile("ricarden-equip1.NPC"), "opened an NPC with a shop");
+            Pump();
+            form.Npcs.TestShowShop();
+            ShopEditor shop = form.Npcs.Shop;
+            for (int w = 0; w < 200 && !shop.Ready; w++) { await Task.Delay(100); Pump(); }
+            Check(shop.Ready, "item list loaded: " + shop.Catalog.Items.Count + " items");
+            string npcFile = form.Npcs.Doc.Path;
+            byte[] shopBefore = File.ReadAllBytes(npcFile);
+            shop.TestCategory("Axes");
+            Pump();
+            Check(shop.PickerCount > 10, "the Axes category lists " + shop.PickerCount + " items");
+            Shot("25_shop_axes");
+            int w0 = NpcShop.Read(form.Npcs.Doc, NpcShop.Keys[0]).Count;
+            shop.TestPick(0);
+            shop.AddSelected();
+            Check(NpcShop.Read(form.Npcs.Doc, NpcShop.Keys[0]).Count == w0 + 1, "adding from the list puts it in the shop");
+            Check(form.Npcs.HasUnsaved, "the file shows unsaved");
+            shop.AddSelected();
+            Check(NpcShop.Read(form.Npcs.Doc, NpcShop.Keys[0]).Count == w0 + 1, "adding it twice does nothing");
+            shop.TestCategory("All items");
+            shop.TestSearch("Mystic Life");
+            Pump();
+            Check(shop.PickerCount >= 1, "searching by name finds it: " + shop.PickerCount);
+            shop.TestSection(2);
+            shop.TestPick(0);
+            shop.AddSelected();
+            Pump();
+            Shot("26_shop_goods_search");
+            shop.TestSearch("");
+            shop.TestSection(0);
+            shop.TestPickInShop(0);
+            string movedCode = NpcShop.Read(form.Npcs.Doc, NpcShop.Keys[0])[0];
+            shop.MoveTo(1);
+            Check(NpcShop.Read(form.Npcs.Doc, NpcShop.Keys[1]).Contains(movedCode, StringComparer.OrdinalIgnoreCase) && !NpcShop.Read(form.Npcs.Doc, NpcShop.Keys[0]).Contains(movedCode, StringComparer.OrdinalIgnoreCase), "moving an item between tabs");
+            form.Npcs.SaveCurrent();
+            TextDoc reread = TextDoc.Load(npcFile);
+            Check(NpcShop.Read(reread, NpcShop.Keys[2]).Count > 0 && !form.Npcs.HasUnsaved, "saved to the .npc file");
+            int keptLines = 0;
+            string[] was = Cp949.Enc.GetString(shopBefore).Replace("\r\n", "\n").Split('\n');
+            string[] now = Cp949.Enc.GetString(File.ReadAllBytes(npcFile)).Replace("\r\n", "\n").Split('\n');
+            foreach (string l in was) if (now.Contains(l)) keptLines++;
+            Check(was.Length == now.Length && was.Length - keptLines <= 3, "only the three shop lines changed: " + (was.Length - keptLines));
+            Check(new[] { "//*대화" }.All(k => Cp949.Enc.GetString(File.ReadAllBytes(npcFile)).Contains(k)), "comments kept");
+
+            await OpenMap(maps, "village-2");
+            Pump();
+            SelectTab(form.Maps);
+            NpcRecord withShop = maps.Session.Npcs.First(x => x.NpcFile.EndsWith("ricarden-store.NPC", StringComparison.OrdinalIgnoreCase));
+            string storePath = Path.Combine(form.ServerRoot, withShop.NpcFile);
+            var dlg = new ShopDialog(storePath, () => form.Data, maps.TestNpcName(withShop));
+            dlg.Show(form);
+            for (int w = 0; w < 100 && !dlg.Editor.Ready; w++) { await Task.Delay(50); Pump(); }
+            dlg.Editor.TestSection(2);
+            dlg.Editor.TestCategory("Potions");
+            Pump();
+            using (var bmp = new Bitmap(dlg.Width, dlg.Height, PixelFormat.Format32bppArgb))
+            {
+                using (Graphics g2 = Graphics.FromImage(bmp))
+                {
+                    IntPtr dc = g2.GetHdc();
+                    PrintWindow(dlg.Handle, dc, 2);
+                    g2.ReleaseHdc(dc);
+                }
+                bmp.Save(Path.Combine(outDir, "27_shop_dialog.png"), ImageFormat.Png);
+            }
+            dlg.Editor.TestPick(0);
+            int goodsBefore = NpcShop.Read(dlg.Doc, NpcShop.Keys[2]).Count;
+            dlg.Editor.AddSelected();
+            bool added2 = NpcShop.Read(dlg.Doc, NpcShop.Keys[2]).Count >= goodsBefore;
+            Check(added2 && dlg.SaveDoc(), "the shop window from the map saves too");
+            dlg.DialogResult = DialogResult.OK;
+            dlg.Close();
+            dlg.Dispose();
+
             Log("== data tabs");
             SelectTab(form.Items);
             await WaitForList(form.Items);
