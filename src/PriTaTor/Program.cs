@@ -12,6 +12,7 @@ namespace PriTaTor
         [STAThread]
         static int Main(string[] args)
         {
+            Loc.Load();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.ThreadException += (s, e) => Report(e.Exception);
@@ -34,13 +35,13 @@ namespace PriTaTor
             }
             while (server == null || !Catalog.LooksLikeServer(server))
             {
-                using (var d = new FolderBrowserDialog { Description = "PriTaTor goes in the game server folder, next to GameServer and Field. Which folder is the server in?" })
+                using (var d = new FolderBrowserDialog { Description = Loc.T("PriTaTor goes in the game server folder, next to GameServer and Field. Which folder is the server in?") })
                 {
                     if (d.ShowDialog() != DialogResult.OK) return 1;
                     server = d.SelectedPath;
                 }
                 if (!Catalog.LooksLikeServer(server))
-                    MessageBox.Show("That folder has no GameServer\\Field folder.", "PriTaTor");
+                    MessageBox.Show(Loc.T("That folder has no GameServer\\Field folder."), "PriTaTor");
             }
 
             server = Path.GetFullPath(server);
@@ -67,7 +68,7 @@ namespace PriTaTor
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
             if (UiTest.Running) { UiTest.Fail(ex); return; }
-            MessageBox.Show("Something went wrong:\n\n" + ex.Message + "\n\nDetails are in PriTaTor\\errors.log.", "PriTaTor", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(Loc.F("Something went wrong:\n\n{0}\n\nDetails are in PriTaTor\\errors.log.", ex.Message), "PriTaTor", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }

@@ -143,7 +143,7 @@ namespace PriTaTor.Core
                 GameFieldRoot = Path.Combine(serverRoot, "GameServer", "Field"),
                 FieldRoot = fieldRoot ?? ReadFieldOverride(serverRoot) ?? Path.Combine(serverRoot, "Field")
             };
-            progress?.Invoke("Looking for maps…", 0, 0);
+            progress?.Invoke(Loc.T("Looking for maps…"), 0, 0);
             var saved = Ini.Read(ToolFolder.SettingsToRead(serverRoot));
             List<string> files = c.FindStageFiles(saved, force);
             string savedTextures = saved.TryGetValue("server", out var serverSection) && serverSection.TryGetValue("TextureFolder", out string tf) ? tf : "";
@@ -206,7 +206,7 @@ namespace PriTaTor.Core
                 var names = new HashSet<string>(c.Maps.Select(m => m.Stem), StringComparer.OrdinalIgnoreCase);
                 foreach (MapEntry m in c.Maps) m.Twins.RemoveAll(t => !names.Contains(t.Stem));
             }
-            progress?.Invoke("Reading flags and NPCs…", 0, 0);
+            progress?.Invoke(Loc.T("Reading flags and NPCs…"), 0, 0);
             c.ReadServerExeMaps();
             c.RefreshCounts();
             c.Maps.Sort((x, y) => string.Compare(x.RelPath ?? x.Stem, y.RelPath ?? y.Stem, StringComparison.OrdinalIgnoreCase));
@@ -401,7 +401,7 @@ namespace PriTaTor.Core
                     m.HasGeometry = false;
                 }
                 int n = Interlocked.Increment(ref done);
-                progress?.Invoke("Preparing maps: " + m.Stem, n, work.Count);
+                progress?.Invoke(Loc.F("Preparing maps: {0}", m.Stem), n, work.Count);
             });
             if (changed.Count > 0) FindTwins(changed, samples, progress);
         }
@@ -427,7 +427,7 @@ namespace PriTaTor.Core
             int done = 0;
             foreach (MapEntry a in changed)
             {
-                progress?.Invoke("Looking for moved copies of maps", ++done, changed.Count);
+                progress?.Invoke(Loc.T("Looking for moved copies of maps"), ++done, changed.Count);
                 if (!a.HasGeometry) continue;
                 foreach (MapEntry b in real)
                 {

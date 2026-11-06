@@ -62,7 +62,7 @@ namespace PriTaTor.UI
             MessageBox.Show(owner, message, "PriTaTor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
         public static DialogResult AskSave(IWin32Window owner, string what) =>
-            MessageBox.Show(owner, "Save your changes to " + what + "?", "PriTaTor", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            MessageBox.Show(owner, Loc.F("Save your changes to {0}?", what), "PriTaTor", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
     }
 
     /// <summary>Text box with a find bar. Colours keys, comments and quoted text when a file opens.</summary>

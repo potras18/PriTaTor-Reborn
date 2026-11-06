@@ -258,7 +258,7 @@ namespace PriTaTor.UI
                 foreach (DocEntry e in ordered)
                 {
                     SchemaField f = schema.Lookup(e.Key);
-                    int r = grid.Rows.Add(f?.Group ?? "Other", f?.Label ?? e.Key, e.Key, Shown(e.Value), f?.Help ?? "");
+                    int r = grid.Rows.Add(Loc.T(f?.Group ?? "Other"), f != null ? Loc.T(f.Label) : e.Key, e.Key, Shown(e.Value), f != null ? Loc.T(f.Help) : "");
                     grid.Rows[r].Tag = e.Line;
                 }
                 var present = new HashSet<string>(entries.Select(e => e.Key), StringComparer.OrdinalIgnoreCase);
@@ -280,7 +280,15 @@ namespace PriTaTor.UI
         {
             public readonly SchemaField F;
             public KeyChoice(SchemaField f) { F = f; }
-            public override string ToString() => F.Label + "  (" + F.Key + ")";
+            public override string ToString() => Loc.T(F.Label) + "  (" + F.Key + ")";
+        }
+
+        /// <summary>The language changed: show the field names and help again in it.</summary>
+        public void Relabel()
+        {
+            if (doc == null) return;
+            SyncViews();
+            FillFromDoc();
         }
 
         void GridEdited(object s, DataGridViewCellEventArgs e)
@@ -339,20 +347,20 @@ namespace PriTaTor.UI
             if (doc == null) return;
             SyncViews();
             string link = Tokens.Unquote(doc.First("*연결파일"));
-            if (link.Length == 0) { Ui.Error(this, "This file doesn't link to a name file."); return; }
+            if (link.Length == 0) { Ui.Error(this, Loc.T("This file doesn't link to a name file.")); return; }
             string folder = Path.GetDirectoryName(doc.Path);
             string full = Path.Combine(folder, link);
-            if (!File.Exists(full)) { Ui.Error(this, "The linked file isn't there:\n" + full); return; }
+            if (!File.Exists(full)) { Ui.Error(this, Loc.F("The linked file isn't there:\n{0}", full)); return; }
             host.OpenInTextTab(full);
         }
 
         void NewCopy()
         {
-            if (doc == null) { Ui.Error(this, "Pick a file to copy first."); return; }
+            if (doc == null) { Ui.Error(this, Loc.T("Pick a file to copy first.")); return; }
             SyncViews();
             string baseName = Path.GetFileNameWithoutExtension(doc.Path);
             string ext = Path.GetExtension(doc.Path);
-            using (var d = new SaveFileDialog { InitialDirectory = Path.GetDirectoryName(doc.Path), FileName = baseName + "_copy" + ext, Filter = "This type|*" + ext, Title = "New copy of " + Path.GetFileName(doc.Path) })
+            using (var d = new SaveFileDialog { InitialDirectory = Path.GetDirectoryName(doc.Path), FileName = baseName + "_copy" + ext, Filter = Loc.F("This type|*{0}", ext), Title = Loc.F("New copy of {0}", Path.GetFileName(doc.Path)) })
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 try
@@ -388,7 +396,7 @@ namespace PriTaTor.UI
         void DeleteFile()
         {
             if (doc == null) return;
-            if (MessageBox.Show(this, "Delete " + Path.GetFileName(doc.Path) + "?\n\nA copy goes in " + SafeWrite.BackupFolderName + ".", "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            if (MessageBox.Show(this, Loc.F("Delete {0}?\n\nA copy goes in {1}.", Path.GetFileName(doc.Path), SafeWrite.BackupFolderName), "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             try
             {
                 SafeWrite.Delete(doc.Path);
@@ -399,7 +407,7 @@ namespace PriTaTor.UI
                 FillList();
                 FillFromDoc();
                 pathLabel.Text = "";
-                host.SetStatus("Deleted " + Path.GetFileName(path) + ". Reload the server for this to take effect.");
+                host.SetStatus(Loc.F("Deleted {0}. Reload the server for this to take effect.", Path.GetFileName(path)));
             }
             catch (IOException ex) { Ui.Error(this, ex.Message); }
         }
@@ -425,7 +433,7 @@ namespace PriTaTor.UI
             if (!doc.Dirty) return;
             try
             {
-                if (doc.ChangedOnDisk() && MessageBox.Show(this, Path.GetFileName(doc.Path) + " changed on disk since you opened it. Overwrite?", "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                if (doc.ChangedOnDisk() && MessageBox.Show(this, Loc.F("{0} changed on disk since you opened it. Overwrite?", Path.GetFileName(doc.Path)), "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
                 bool wrote = SafeWrite.Save(doc.Path, doc.ToBytes());
                 doc.MarkSaved();
                 bool namesChanged = false;
@@ -441,12 +449,12 @@ namespace PriTaTor.UI
                     currentItem.SubItems[2].Text = cur.Name ?? "";
                     if (extraTitle != null) currentItem.SubItems[3].Text = cur.Extra ?? "";
                 }
-                host.SetStatus(wrote ? "Saved " + Path.GetFileName(doc.Path) + ". Reload the server for this to take effect." : "Nothing needed saving.");
+                host.SetStatus(wrote ? Loc.F("Saved {0}. Reload the server for this to take effect.", Path.GetFileName(doc.Path)) : Loc.T("Nothing needed saving."));
                 UpdateButtons();
                 if (namesChanged) host.NamesChanged(this);
             }
-            catch (IOException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
-            catch (UnauthorizedAccessException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
+            catch (IOException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
+            catch (UnauthorizedAccessException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
         }
 
         public bool ConfirmLeave()

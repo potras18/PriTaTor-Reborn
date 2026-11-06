@@ -154,16 +154,16 @@ namespace PriTaTor.UI
             filling = true;
             tree.BeginUpdate();
             tree.Nodes.Clear();
-            TreeNode all = tree.Nodes.Add("All items (" + catalog.Items.Count + ")");
+            TreeNode all = tree.Nodes.Add(Loc.F("All items ({0})", catalog.Items.Count));
             foreach (string g in ItemCatalog.GroupOrder)
             {
                 List<ShopItem> inGroup = catalog.Items.Where(i => i.Group == g).ToList();
                 if (inGroup.Count == 0) continue;
                 var cats = inGroup.GroupBy(i => i.Category).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).ToList();
-                var node = new TreeNode(g + " (" + inGroup.Count + ")") { Tag = new[] { g, null } };
+                var node = new TreeNode(Loc.T(g) + " (" + inGroup.Count + ")") { Tag = new[] { g, null } };
                 if (cats.Count > 1)
                     foreach (var c in cats)
-                        node.Nodes.Add(new TreeNode(c.Key + " (" + c.Count() + ")") { Tag = new[] { g, c.Key } });
+                        node.Nodes.Add(new TreeNode(Loc.T(c.Key) + " (" + c.Count() + ")") { Tag = new[] { g, c.Key } });
                 tree.Nodes.Add(node);
             }
             tree.ExpandAll();
@@ -225,13 +225,13 @@ namespace PriTaTor.UI
                 {
                     ShopItem item = null;
                     catalog?.ByCode.TryGetValue(code, out item);
-                    var it = new ListViewItem(new[] { item?.Name ?? (catalog != null ? "(no item file)" : ""), code, item != null && item.Level > 0 ? item.Level.ToString() : "" }) { Tag = code };
+                    var it = new ListViewItem(new[] { item?.Name ?? (catalog != null ? Loc.T("(no item file)") : ""), code, item != null && item.Level > 0 ? item.Level.ToString() : "" }) { Tag = code };
                     if (catalog != null && item == null) it.ForeColor = Color.Red;
                     if (keep != null && s == Active && keep.Contains(code)) it.Selected = true;
                     l.Items.Add(it);
                 }
                 l.EndUpdate();
-                sections.TabPages[s].Text = NpcShop.Titles[s] + " (" + codes.Count + ")";
+                sections.TabPages[s].Text = Loc.T(NpcShop.Titles[s]) + " (" + codes.Count + ")";
             }
         }
 
@@ -241,8 +241,8 @@ namespace PriTaTor.UI
             bool over = n > NpcShop.SuggestedLimit;
             info.ForeColor = over ? Color.OrangeRed : SystemColors.GrayText;
             info.Text = over
-                ? n + " items on this tab. The biggest tab on the test server holds 31, so more than " + NpcShop.SuggestedLimit + " may not show in game."
-                : "Each section is a tab in the NPC's shop, and any item can go on any tab. Items already on this tab are grey on the left.";
+                ? Loc.F("{0} items on this tab. The biggest tab on the test server holds 31, so more than {1} may not show in game.", n, NpcShop.SuggestedLimit)
+                : Loc.T("Each section is a tab in the NPC's shop, and any item can go on any tab. Items already on this tab are grey on the left.");
         }
 
         void Commit(List<string> codes, int section, IEnumerable<string> keep = null)
@@ -314,7 +314,7 @@ namespace PriTaTor.UI
             {
                 if (s == Active) continue;
                 int target = s;
-                menu.Items.Add(NpcShop.Titles[s], null, (x, e) => MoveTo(target));
+                menu.Items.Add(Loc.T(NpcShop.Titles[s]), null, (x, e) => MoveTo(target));
             }
             menu.Closed += (x, e) => BeginInvoke((Action)menu.Dispose);
             menu.Show(under, new Point(0, under.Height));
@@ -374,7 +374,7 @@ namespace PriTaTor.UI
         public ShopDialog(string path, Func<ServerData> data, string title)
         {
             doc = TextDoc.Load(path);
-            Text = "Shop: " + title;
+            Text = Loc.F("Shop: {0}", title);
             Font = Ui.BaseFont;
             ClientSize = new Size(1040, 640);
             MinimumSize = new Size(800, 420);
@@ -391,6 +391,7 @@ namespace PriTaTor.UI
             Controls.Add(bottom);
             CancelButton = cancel;
             Shown += (s, e) => Editor.Bind(doc);
+            Loc.Apply(this);
             FormClosing += (s, e) =>
             {
                 if (DialogResult == DialogResult.OK || !doc.Dirty) return;
@@ -405,14 +406,14 @@ namespace PriTaTor.UI
             if (!doc.Dirty) return true;
             try
             {
-                if (doc.ChangedOnDisk() && MessageBox.Show(this, Path.GetFileName(doc.Path) + " changed on disk since you opened it. Overwrite?", "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return false;
+                if (doc.ChangedOnDisk() && MessageBox.Show(this, Loc.F("{0} changed on disk since you opened it. Overwrite?", Path.GetFileName(doc.Path)), "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return false;
                 SafeWrite.Save(doc.Path, doc.ToBytes());
                 doc.MarkSaved();
                 Saved = true;
                 return true;
             }
-            catch (IOException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
-            catch (UnauthorizedAccessException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
+            catch (IOException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
+            catch (UnauthorizedAccessException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
             return false;
         }
 

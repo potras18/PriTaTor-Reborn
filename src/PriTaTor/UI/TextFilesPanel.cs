@@ -109,7 +109,7 @@ namespace PriTaTor.UI
             {
                 doc = null;
                 pathLabel.Text = path;
-                editor.SetText("This file holds binary data, so it can't be edited as text.");
+                editor.SetText(Loc.T("This file holds binary data, so it can't be edited as text."));
                 editor.ReadOnly = true;
                 edited = false;
                 UpdateButtons();
@@ -161,16 +161,16 @@ namespace PriTaTor.UI
             if (!HasUnsaved) return;
             try
             {
-                if (doc.ChangedOnDisk() && MessageBox.Show(this, Path.GetFileName(doc.Path) + " changed on disk since you opened it. Overwrite?", "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                if (doc.ChangedOnDisk() && MessageBox.Show(this, Loc.F("{0} changed on disk since you opened it. Overwrite?", Path.GetFileName(doc.Path)), "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
                 doc.SetAllText(editor.EditorText);
                 bool wrote = SafeWrite.Save(doc.Path, doc.ToBytes());
                 doc.MarkSaved();
                 edited = false;
-                host.SetStatus(wrote ? "Saved " + Path.GetFileName(doc.Path) + ". Reload the server for this to take effect." : "Nothing needed saving.");
+                host.SetStatus(wrote ? Loc.F("Saved {0}. Reload the server for this to take effect.", Path.GetFileName(doc.Path)) : Loc.T("Nothing needed saving."));
                 UpdateButtons();
             }
-            catch (IOException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
-            catch (UnauthorizedAccessException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
+            catch (IOException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
+            catch (UnauthorizedAccessException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
         }
 
         public bool ConfirmLeave()

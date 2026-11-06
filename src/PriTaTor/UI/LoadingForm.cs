@@ -3,6 +3,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using PriTaTor.Core;
 
 namespace PriTaTor.UI
 {
@@ -43,16 +44,16 @@ namespace PriTaTor.UI
             Padding = new Padding(22, 18, 22, 12);
             ClientSize = new Size(500, 196);
             UseWaitCursor = true;
-            step.Text = "Starting up…";
+            step.Text = Loc.T("Starting up…");
             detail.ForeColor = Color.FromArgb(154, 168, 160);
             detail.Padding = new Padding(0, 6, 0, 0);
 
             var title = new Label { Text = "PriTaTor Reborn", Dock = DockStyle.Top, Height = 38, Font = new Font("Segoe UI Semibold", 18f), ForeColor = Color.White };
-            var version = new Label { Text = "Priston Tale server manager and map editor", Dock = DockStyle.Top, Height = 24, ForeColor = detail.ForeColor };
+            var version = new Label { Text = Loc.T("Priston Tale server manager and map editor"), Dock = DockStyle.Top, Height = 24, ForeColor = detail.ForeColor };
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 28 };
             if (showCancel)
             {
-                var cancel = new MouseOnlyButton { Text = "Cancel", Dock = DockStyle.Right, Width = 84, FlatStyle = FlatStyle.Flat, ForeColor = ForeColor, UseWaitCursor = false, Cursor = Cursors.Default };
+                var cancel = new MouseOnlyButton { Text = Loc.T("Cancel"), Dock = DockStyle.Right, Width = 84, FlatStyle = FlatStyle.Flat, ForeColor = ForeColor, UseWaitCursor = false, Cursor = Cursors.Default };
                 cancelButton = cancel;
                 cancel.FlatAppearance.BorderColor = Color.FromArgb(70, 80, 90);
                 cancel.Click += (s, e) => Application.Exit();
@@ -81,7 +82,7 @@ namespace PriTaTor.UI
         {
             int secs = (int)(DateTime.Now - started).TotalSeconds;
             // past a few seconds, show the time so a slow disk doesn't look like a crash
-            string time = secs >= 3 ? secs + " seconds so far. " : "";
+            string time = secs >= 3 ? Loc.F("{0} seconds so far. ", secs) : "";
             string text = time + note;
             if (detail.Text != text) detail.Text = text;
         }
@@ -96,14 +97,14 @@ namespace PriTaTor.UI
                 catch (InvalidOperationException) { }
                 return;
             }
-            step.Text = total > 0 ? message + "  (" + n + " of " + total + ")" : message;
+            step.Text = total > 0 ? Loc.F("{0}  ({1} of {2})", message, n, total) : message;
             if (total > 0)
             {
                 if (bar.Style != ProgressBarStyle.Continuous) bar.Style = ProgressBarStyle.Continuous;
                 bar.Maximum = total;
                 bar.Value = Math.Min(n, total);
                 everPreparing = true;
-                note = "Each map is only prepared once. Later starts skip this unless a map file changes.";
+                note = Loc.T("Each map is only prepared once. Later starts skip this unless a map file changes.");
                 Counted?.Invoke(n, total);
             }
             else
