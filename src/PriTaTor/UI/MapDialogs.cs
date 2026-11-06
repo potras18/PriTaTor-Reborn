@@ -35,6 +35,7 @@ namespace PriTaTor.UI
             Controls.Add(bottom);
             AcceptButton = ok;
             CancelButton = cancel;
+            Loc.Apply(this);
             filter.TextChanged += (s, e) => Fill();
             list.DoubleClick += (s, e) => { if (Chosen != null) { DialogResult = DialogResult.OK; Close(); } };
             list.Format += (s, e) =>
@@ -97,6 +98,7 @@ namespace PriTaTor.UI
             t.Controls.Add(ok);
             t.Controls.Add(cancel);
             Controls.Add(t);
+            Loc.Apply(this);
             AcceptButton = ok;
             CancelButton = cancel;
         }
@@ -123,7 +125,7 @@ namespace PriTaTor.UI
         {
             this.cat = cat;
             this.target = target;
-            Text = "Import onto " + target.Stem;
+            Text = Loc.F("Import onto {0}", target.Stem);
             AutoSize = true;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
             StartPosition = FormStartPosition.CenterParent;
@@ -167,6 +169,7 @@ namespace PriTaTor.UI
             t2.Controls.Add(ok);
             t2.Controls.Add(cancel);
             Controls.Add(t2);
+            Loc.Apply(this);
             AcceptButton = ok;
             CancelButton = cancel;
             if (Source.Items.Count > 0) Source.SelectedIndex = 0;
@@ -208,7 +211,7 @@ namespace PriTaTor.UI
                     }
             }
             catch (IOException) { }
-            preview.Text = string.Format("{0} has {1} flags and {2} NPCs. At this offset {3} would land outside {4}.", s.Stem, flags, npcs, outside, target.Stem);
+            preview.Text = Loc.F("{0} has {1} flags and {2} NPCs. At this offset {3} would land outside {4}.", s.Stem, flags, npcs, outside, target.Stem);
         }
     }
 }

@@ -161,7 +161,7 @@ namespace PriTaTor.UI
             if (baseBuf != null) g.DrawImageUnscaled(baseBuf, 0, 0);
             if (Session == null)
             {
-                if (Notice == null) TextRenderer.DrawText(g, "Pick a map on the left", Font, ClientRectangle, Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                if (Notice == null) TextRenderer.DrawText(g, Loc.T("Pick a map on the left"), Font, ClientRectangle, Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 DrawNotice(g);
                 return;
             }
@@ -193,9 +193,9 @@ namespace PriTaTor.UI
             DrawNotice(g);
             if (Tool != CanvasTool.Select)
             {
-                string msg = Tool == CanvasTool.AddFlag ? "Click to place a monster flag. Esc to stop."
+                string msg = Loc.T(Tool == CanvasTool.AddFlag ? "Click to place a monster flag. Esc to stop."
                     : Tool == CanvasTool.AddNpc ? "Click to place an NPC. Esc to stop."
-                    : "Drag to line the minimap up with the terrain. Esc to finish.";
+                    : "Drag to line the minimap up with the terrain. Esc to finish.");
                 using (var b = new SolidBrush(Color.FromArgb(180, 0, 0, 0)))
                 {
                     SizeF sz = g.MeasureString(msg, Font);
@@ -269,7 +269,7 @@ namespace PriTaTor.UI
                 g.DrawLine(pen, 12, y - 4, 12, y + 4);
                 g.DrawLine(pen, 12 + px, y - 4, 12 + px, y + 4);
             }
-            DrawLabel(g, best + " units", 14, y - 18, Color.White);
+            DrawLabel(g, Loc.F("{0} units", best), 14, y - 18, Color.White);
         }
 
         // ----- hit testing -----

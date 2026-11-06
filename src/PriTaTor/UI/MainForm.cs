@@ -50,6 +50,9 @@ namespace PriTaTor.UI
             MainMenuStrip = menu;
             FormClosing += (s, e) => { if (panels.Any(p => !p.ConfirmLeave())) e.Cancel = true; };
             Tabs.Selecting += TabSelecting;
+            Loc.Apply(this);
+            Loc.Changed += LanguageChanged;
+            FormClosed += (s, e) => Loc.Changed -= LanguageChanged;
         }
 
         void BuildMenu()
@@ -68,8 +71,25 @@ namespace PriTaTor.UI
             var help = new ToolStripMenuItem("&Help");
             help.DropDownItems.Add(new ToolStripMenuItem("&Map editor keys", null, (s, e) => ShowKeys()));
             help.DropDownItems.Add(new ToolStripMenuItem("&About", null, (s, e) => ShowAbout()));
+            var langs = new ToolStripMenuItem("&Languages");
+            foreach (Language l in Loc.All)
+            {
+                Language lang = l;
+                langs.DropDownItems.Add(new ToolStripMenuItem(lang.Name, null, (s, e) => Loc.Set(lang.Code)) { Tag = lang.Code });
+            }
+            langs.DropDownOpening += (s, e) => { foreach (ToolStripMenuItem i in langs.DropDownItems) i.Checked = (string)i.Tag == Loc.Code; };
+            help.DropDownItems.Add(langs);
             menu.Items.Add(file);
             menu.Items.Add(help);
+        }
+
+        /// <summary>Every open window gets its text again, in the language now chosen.</summary>
+        void LanguageChanged()
+        {
+            Loc.Apply(this);
+            foreach (Form f in OwnedForms) Loc.Apply(f);
+            Maps?.RelabelAll();
+            foreach (DataFilePanel p in new[] { Monsters, Npcs, Items, Names }) p?.Relabel();
         }
 
         IEditorPanel CurrentPanel() => Tabs.SelectedTab?.Controls.Count > 0 ? Tabs.SelectedTab.Controls[0] as IEditorPanel : null;
@@ -98,7 +118,7 @@ namespace PriTaTor.UI
                 load = new LoadingForm(false, this);
                 Enabled = false;
                 load.Show(this);
-                load.Report(force ? "Rebuilding server settings…" : "Reading the server folder…");
+                load.Report(Loc.T(force ? "Rebuilding server settings…" : "Reading the server folder…"));
             }
             string fieldArg = newField ?? fieldOverride;
             Task.Run(() =>
@@ -109,7 +129,7 @@ namespace PriTaTor.UI
                 try
                 {
                     c = Catalog.Scan(ServerRoot, fieldArg, force, (msg, n, total) => load.Report(msg, n, total), textures);
-                    load.Report("Reading monsters, NPCs and names…");
+                    load.Report(Loc.T("Reading monsters, NPCs and names…"));
                     d = ServerData.Load(ServerRoot);
                 }
                 catch (Exception ex)
@@ -129,27 +149,27 @@ namespace PriTaTor.UI
             if (err != null)
             {
                 if (UiTest.Running) UiTest.Fail(err);
-                else Ui.Error(load, "Couldn't read the server folder:\n\n" + err.Message + "\n\nDetails are in PriTaTor\\errors.log.");
+                else Ui.Error(load, Loc.F("Couldn't read the server folder:\n\n{0}\n\nDetails are in PriTaTor\\errors.log.", err.Message));
                 if (first) { Application.Exit(); return; }
                 Enabled = true;
                 load.Close();
-                SetStatus("Couldn't read the server folder.");
+                SetStatus(Loc.T("Couldn't read the server folder."));
                 return;
             }
             Cat = c;
             Data = d;
             monsterMaps = null;
             Text = "PriTaTor Reborn - " + ServerRoot + (string.Equals(c.FieldRoot, Path.Combine(ServerRoot, "Field"), StringComparison.OrdinalIgnoreCase) ? "" : "  (Field: " + c.FieldRoot + ")");
-            load.Report("Opening the editor…");
+            load.Report(Loc.T("Opening the editor…"));
             if (first) BuildTabs();
             else Maps.RefreshCatalog(c);
             int linked = c.Maps.Count(m => m.Twins.Count > 0);
-            string done = string.Format("{0} maps, {1} with spawn data, {2} matched to a moved copy of themselves.",
+            string done = Loc.F("{0} maps, {1} with spawn data, {2} matched to a moved copy of themselves.",
                 c.Maps.Count(m => m.HasGeometry), c.Maps.Count(m => m.HasSpawnData), linked);
             int prepared = Math.Max(c.MapsMeasured, c.MapsDrawn);
-            string how = prepared > 0 ? "  Just prepared: " + prepared + "." : "";
-            string warn = c.ImagesWritable ? "" : "  This folder can't be saved to, so maps are prepared again at each start.";
-            string tex = c.HasTextures ? "" : "  For textured maps, copy the client's Field textures to the server's Field folder, or use File > Use textures from a client folder.";
+            string how = prepared > 0 ? Loc.F("  Just prepared: {0}.", prepared) : "";
+            string warn = c.ImagesWritable ? "" : Loc.T("  This folder can't be saved to, so maps are prepared again at each start.");
+            string tex = c.HasTextures ? "" : Loc.T("  For textured maps, copy the client's Field textures to the server's Field folder, or use File > Use textures from a client folder.");
             SetStatus(done + how + warn + tex);
             // items are only needed for shops, so read them quietly now and shops open straight away
             Task.Run(() => d.Items.Value);
@@ -182,6 +202,7 @@ namespace PriTaTor.UI
             AddTab("Items", Items, Items);
             AddTab("Names", Names, Names);
             AddTab("Text files", TextFiles, TextFiles);
+            Loc.Apply(this);
         }
 
         void AddTab(string title, Control c, IEditorPanel p)
@@ -211,7 +232,7 @@ namespace PriTaTor.UI
                     catch (IOException) { }
                 }
             }
-            return monsterMaps.TryGetValue(name ?? "", out List<string> l) ? "Spawns on: " + string.Join(", ", l) : "Not in any map's monster list.";
+            return monsterMaps.TryGetValue(name ?? "", out List<string> l) ? Loc.F("Spawns on: {0}", string.Join(", ", l)) : Loc.T("Not in any map's monster list.");
         }
 
         // ----- commands -----
@@ -225,7 +246,7 @@ namespace PriTaTor.UI
         void ChooseField()
         {
             if (panels.Any(p => !p.ConfirmLeave())) return;
-            using (var d = new FolderBrowserDialog { Description = "Choose the Field folder holding the map files", SelectedPath = Cat?.FieldRoot })
+            using (var d = new FolderBrowserDialog { Description = Loc.T("Choose the Field folder holding the map files"), SelectedPath = Cat?.FieldRoot })
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 StartScan(true, d.SelectedPath);
@@ -235,7 +256,7 @@ namespace PriTaTor.UI
         void ChooseTextures()
         {
             if (panels.Any(p => !p.ConfirmLeave())) return;
-            using (var d = new FolderBrowserDialog { Description = "Choose a game client folder. Maps are drawn with the textures in its Field folder.", SelectedPath = Cat?.TextureFolder })
+            using (var d = new FolderBrowserDialog { Description = Loc.T("Choose a game client folder. Maps are drawn with the textures in its Field folder."), SelectedPath = Cat?.TextureFolder })
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 textureOverride = d.SelectedPath;
@@ -253,7 +274,7 @@ namespace PriTaTor.UI
         void OpenBackups()
         {
             string p = Path.Combine(ServerRoot, SafeWrite.BackupFolderName);
-            if (!Directory.Exists(p)) { Ui.Error(this, "Nothing has been backed up yet."); return; }
+            if (!Directory.Exists(p)) { Ui.Error(this, Loc.T("Nothing has been backed up yet.")); return; }
             Process.Start("explorer.exe", "\"" + p + "\"");
         }
 
@@ -261,29 +282,29 @@ namespace PriTaTor.UI
         {
             if (Cat == null) return;
             string p = TerrainCache.Root(Cat);
-            if (!Directory.Exists(p)) { Ui.Error(this, "No terrain pictures have been saved yet."); return; }
+            if (!Directory.Exists(p)) { Ui.Error(this, Loc.T("No terrain pictures have been saved yet.")); return; }
             Process.Start("explorer.exe", "\"" + p + "\"");
         }
 
         void ShowKeys() => MessageBox.Show(this,
-            "Left click: select. Ctrl+click: add to selection.\n" +
+            Loc.Lines("Left click: select. Ctrl+click: add to selection.\n" +
             "Drag a flag or NPC: move it. Drag empty ground: box select.\n" +
             "Drag the white handle on a selected NPC: turn it. Hold Shift to snap to 15°.\n" +
             "Right drag or middle drag: pan. Wheel: zoom. Right click: menu.\n\n" +
             "Arrow keys: move selection by 10 (with Shift: 100).\n" +
             "Q / E: turn selected NPCs by 5° (with Shift: 45°).\n" +
             "Del: delete. Ctrl+D: duplicate. Ctrl+A: select all flags.\n" +
-            "Ctrl+Z / Ctrl+Y: undo and redo. Ctrl+S: save. F: fit. Esc: back to Select.",
-            "Map editor keys");
+            "Ctrl+Z / Ctrl+Y: undo and redo. Ctrl+S: save. F: fit. Esc: back to Select."),
+            Loc.T("Map editor keys"));
 
         void ShowAbout() => MessageBox.Show(this,
-            "PriTaTor Reborn " + Application.ProductVersion + "\nPriston Tale server manager and map editor.\n\n" +
+            "PriTaTor Reborn " + Application.ProductVersion + "\n" + Loc.Lines("Priston Tale server manager and map editor.\n\n" +
             "Map positions are measured from this server's own map files and kept in the PriTaTor folder.\n" +
             "The server reads its files at start-up: reload it after saving.\n\n" +
             "Credits\n" +
             "Sumomo created PriTaTor in 2008 and wrote every version up to PriTaTor 2.\n" +
             "bobsobol kept the 1.8 downloads and source available and helped with the game's text encoding.\n" +
-            "MysteryPT made the map references that shipped with PriTaTor 2.", "About PriTaTor Reborn");
+            "MysteryPT made the map references that shipped with PriTaTor 2."), Loc.T("About PriTaTor Reborn"));
 
         public void OpenInTextTab(string path)
         {
@@ -296,7 +317,7 @@ namespace PriTaTor.UI
         {
             foreach (TabPage t in Tabs.TabPages)
                 if (t.Controls[0] == Npcs) Tabs.SelectedTab = t;
-            if (!Npcs.SelectByFile(fileName)) SetStatus("No .npc file called " + fileName + " in GameServer\\NPC.");
+            if (!Npcs.SelectByFile(fileName)) SetStatus(Loc.F("No .npc file called {0} in GameServer\\NPC.", fileName));
         }
 
         /// <summary>A name was edited: read them again so everywhere shows the new one.</summary>

@@ -382,7 +382,7 @@ namespace PriTaTor.UI
             foreach (MapEntry m in cat.Maps)
             {
                 if (q.Length > 0 && (m.Stem + " " + m.RelPath).IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0) continue;
-                string g = m.HasGeometry ? (m.BaseFolder.Length > 0 ? m.BaseFolder : "(top)") : "(no map file)";
+                string g = m.HasGeometry ? (m.BaseFolder.Length > 0 ? m.BaseFolder : Loc.T("(top)")) : Loc.T("(no map file)");
                 if (!groups.TryGetValue(g, out TreeNode parent)) groups[g] = parent = new TreeNode(g);
                 var n = new TreeNode(NodeText(m)) { Tag = m };
                 if (!m.HasGeometry) n.ForeColor = Color.Gray;
@@ -415,7 +415,7 @@ namespace PriTaTor.UI
         {
             int token = ++loadToken;
             Cursor = Cursors.WaitCursor;
-            Canvas.Notice = "Opening " + m.Stem + "…";
+            Canvas.Notice = Loc.F("Opening {0}…", m.Stem);
             Canvas.Invalidate();
             Canvas.Update();
             Catalog c = cat;
@@ -443,7 +443,7 @@ namespace PriTaTor.UI
                     Cursor = Cursors.Default;
                     Canvas.Notice = null;
                     Canvas.Invalidate();
-                    if (err != null) { Ui.Error(this, "Couldn't open " + m.Stem + ":\n" + err.Message); return; }
+                    if (err != null) { Ui.Error(this, Loc.F("Couldn't open {0}:\n{1}", m.Stem, err.Message)); return; }
                     Canvas.Terrain?.Dispose();
                     Canvas.Minimap?.Dispose();
                     Canvas.Terrain = terrain;
@@ -510,8 +510,8 @@ namespace PriTaTor.UI
         {
             if (Session == null) { statusLine.Text = ""; return; }
             double? g = Session.Mesh?.GroundAt(lastWX, lastWZ);
-            statusLine.Text = string.Format("X {0:0}   Z {1:0}{2}      {3} flags, {4} NPCs selected: {5}",
-                lastWX, lastWZ, g.HasValue ? string.Format("   height {0:0}", g.Value) : "", Session.Flags.Count, Session.Npcs.Count, Canvas.SelFlags.Count + Canvas.SelNpcs.Count);
+            statusLine.Text = Loc.F("X {0:0}   Z {1:0}{2}      {3} flags, {4} NPCs selected: {5}",
+                lastWX, lastWZ, g.HasValue ? Loc.F("   height {0:0}", g.Value) : "", Session.Flags.Count, Session.Npcs.Count, Canvas.SelFlags.Count + Canvas.SelNpcs.Count);
         }
 
         // ----- lists -----
@@ -542,7 +542,7 @@ namespace PriTaTor.UI
                     npcList.Items.Add(it);
                 }
             npcList.EndUpdate();
-            flagInfo.Text = Session != null ? Session.Flags.Count + " of " + Session.Spp.Capacity + " slots" : "";
+            flagInfo.Text = Session != null ? Loc.F("{0} of {1} slots", Session.Flags.Count, Session.Spp.Capacity) : "";
             syncing = false;
             FillFlagEditor();
             FillNpcEditor();
@@ -635,7 +635,7 @@ namespace PriTaTor.UI
             npcY.Text = n != null ? n.Y.ToString("0.##") : "";
             npcZ.Text = n != null ? n.Z.ToString("0.##") : "";
             npcAngle.Value = n != null ? (decimal)Math.Round(n.Degrees, 1) : 0;
-            npcRaw.Text = n != null ? "raw " + n.AngleRaw : "";
+            npcRaw.Text = n != null ? Loc.F("raw {0}", n.AngleRaw) : "";
             npcActive.Checked = n != null && n.Active;
             syncing = false;
         }
@@ -700,7 +700,7 @@ namespace PriTaTor.UI
             NpcRecord n = OneNpc();
             if (n == null || Session.Mesh == null) return;
             List<double> surfaces = Session.Mesh.SurfacesAt(n.X, n.Z);
-            if (surfaces.Count == 0) { Ui.Error(this, "There's no ground under this NPC."); return; }
+            if (surfaces.Count == 0) { Ui.Error(this, Loc.T("There's no ground under this NPC.")); return; }
             // pressing again steps down through bridges and floors
             int i = surfaces.FindIndex(h => Math.Abs(h - n.Y) < 1);
             double next = i >= 0 ? surfaces[(i + 1) % surfaces.Count] : surfaces[0];
@@ -721,12 +721,12 @@ namespace PriTaTor.UI
         void OpenShop()
         {
             NpcRecord n = OneNpc();
-            if (n == null) { Ui.Error(this, "Select an NPC first."); return; }
+            if (n == null) { Ui.Error(this, Loc.T("Select an NPC first.")); return; }
             string path = Path.Combine(cat.ServerRoot, n.NpcFile);
-            if (!File.Exists(path)) { Ui.Error(this, "This NPC's file isn't there:\n" + path); return; }
+            if (!File.Exists(path)) { Ui.Error(this, Loc.F("This NPC's file isn't there:\n{0}", path)); return; }
             if (host.Npcs.HasUnsaved && string.Equals(host.Npcs.Doc?.Path, path, StringComparison.OrdinalIgnoreCase))
             {
-                Ui.Error(this, "This NPC's file has unsaved changes on the NPCs tab. Save them there first.");
+                Ui.Error(this, Loc.T("This NPC's file has unsaved changes on the NPCs tab. Save them there first."));
                 return;
             }
             using (var d = new ShopDialog(path, () => data, NpcDisplayName(n)))
@@ -734,7 +734,7 @@ namespace PriTaTor.UI
                 d.ShowDialog(this);
                 if (d.Saved)
                 {
-                    host.SetStatus("Saved " + Path.GetFileName(path) + ". Reload the server for this to take effect.");
+                    host.SetStatus(Loc.F("Saved {0}. Reload the server for this to take effect.", Path.GetFileName(path)));
                     host.Npcs.FileSavedElsewhere(path);
                 }
             }
@@ -768,7 +768,7 @@ namespace PriTaTor.UI
             if (f == null)
             {
                 Session.Undo();
-                Ui.Error(this, "This map's flag file is full (" + Session.Spp.Capacity + " slots). Delete a flag first.");
+                Ui.Error(this, Loc.F("This map's flag file is full ({0} slots). Delete a flag first.", Session.Spp.Capacity));
                 SetTool(CanvasTool.Select);
                 return;
             }
@@ -810,7 +810,7 @@ namespace PriTaTor.UI
             if (n == null)
             {
                 Session.Undo();
-                Ui.Error(this, "This map's NPC file is full (" + Session.Spc.Capacity + " slots). Delete an NPC first.");
+                Ui.Error(this, Loc.F("This map's NPC file is full ({0} slots). Delete an NPC first.", Session.Spc.Capacity));
                 SetTool(CanvasTool.Select);
                 return null;
             }
@@ -933,10 +933,10 @@ namespace PriTaTor.UI
                 SyncListsFromCanvas();
                 Canvas.Invalidate();
             }
-            menu.Items.Add("Add monster flag here", null, (s, e) => PlaceFlag(x, z));
-            menu.Items.Add("Add NPC here…", null, (s, e) => PlaceNpc(x, z));
+            menu.Items.Add(Loc.T("Add monster flag here"), null, (s, e) => PlaceFlag(x, z));
+            menu.Items.Add(Loc.T("Add NPC here…"), null, (s, e) => PlaceNpc(x, z));
             if (Canvas.SelNpcs.Count > 0)
-                menu.Items.Add("Turn selected NPC to face here", null, (s, e) =>
+                menu.Items.Add(Loc.T("Turn selected NPC to face here"), null, (s, e) =>
                 {
                     Session.Checkpoint();
                     foreach (NpcRecord n in Session.Npcs.Where(q => Canvas.SelNpcs.Contains(q.Slot)))
@@ -951,11 +951,11 @@ namespace PriTaTor.UI
             if (Canvas.SelFlags.Count + Canvas.SelNpcs.Count > 0)
             {
                 menu.Items.Add(new ToolStripSeparator());
-                menu.Items.Add("Duplicate", null, (s, e) => DuplicateSelected());
-                menu.Items.Add("Delete", null, (s, e) => DeleteSelected());
+                menu.Items.Add(Loc.T("Duplicate"), null, (s, e) => DuplicateSelected());
+                menu.Items.Add(Loc.T("Delete"), null, (s, e) => DeleteSelected());
             }
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(string.Format("Copy position ({0:0}, {1:0})", x, z), null, (s, e) => Clipboard.SetText(string.Format("{0:0} {1:0}", x, z)));
+            menu.Items.Add(Loc.F("Copy position ({0:0}, {1:0})", x, z), null, (s, e) => Clipboard.SetText(string.Format("{0:0} {1:0}", x, z)));
             menu.Closed += (s, e) => BeginInvoke((Action)menu.Dispose);
             menu.Show(Canvas, at);
         }
@@ -1027,7 +1027,7 @@ namespace PriTaTor.UI
             double total = 0;
             foreach (DataGridViewRow r in actorGrid.Rows)
                 if (!r.IsNewRow && double.TryParse(r.Cells["p"].Value as string, out double p)) total += p;
-            spmTotal.Text = "Rates add up to " + total.ToString("0.##") + ". Red names have no monster file.";
+            spmTotal.Text = Loc.F("Rates add up to {0}. Red names have no monster file.", total.ToString("0.##"));
         }
 
         void ApplySpmNumbers()
@@ -1100,43 +1100,50 @@ namespace PriTaTor.UI
             s.AppendLine(m.Stem);
             if (m.HasGeometry)
             {
-                s.AppendLine("File: Field\\" + m.RelPath);
-                s.AppendLine(string.Format("World X {0:0} to {1:0}, Z {2:0} to {3:0}", m.MinX, m.MaxX, m.MinZ, m.MaxZ));
-                s.AppendLine(string.Format("Centre {0:0}, {1:0}. Size {2:0} x {3:0}", (m.MinX + m.MaxX) / 2, (m.MinZ + m.MaxZ) / 2, m.MaxX - m.MinX, m.MaxZ - m.MinZ));
-                s.AppendLine(string.Format("{0:N0} vertices, {1:N0} faces", m.Verts, m.Faces));
+                s.AppendLine(Loc.F("File: Field\\{0}", m.RelPath));
+                s.AppendLine(Loc.F("World X {0:0} to {1:0}, Z {2:0} to {3:0}", m.MinX, m.MaxX, m.MinZ, m.MaxZ));
+                s.AppendLine(Loc.F("Centre {0:0}, {1:0}. Size {2:0} x {3:0}", (m.MinX + m.MaxX) / 2, (m.MinZ + m.MaxZ) / 2, m.MaxX - m.MinX, m.MaxZ - m.MinZ));
+                s.AppendLine(Loc.F("{0:N0} vertices, {1:N0} faces", m.Verts, m.Faces));
             }
-            else s.AppendLine("No .smd file for this map in the Field folder.");
-            s.AppendLine("Terrain: " + (m.TerrainTextured ? "textured" : "plain. For real textures, see File > Use textures from a client folder"));
-            s.AppendLine("Minimap: " + (m.MinimapPath != null ? Path.GetFileName(m.MinimapPath) : "none, showing terrain only"));
+            else s.AppendLine(Loc.T("No .smd file for this map in the Field folder."));
+            s.AppendLine(Loc.T(m.TerrainTextured ? "Terrain: textured" : "Terrain: plain. For real textures, see File > Use textures from a client folder"));
+            s.AppendLine(Loc.F("Minimap: {0}", m.MinimapPath != null ? Path.GetFileName(m.MinimapPath) : Loc.T("none, showing terrain only")));
             if (m.MinimapPath != null)
-                s.AppendLine(m.ManualDX != null ? string.Format("Minimap moved by hand: {0:0}, {1:0}", m.MinimapDX, m.MinimapDZ) : "Minimap stretched to the map's bounds");
-            s.AppendLine("Spawn files: " + (m.HasSpawnData ? string.Join(", ", new[] { m.SppPath, m.SpcPath, m.SpmPath }.Where(p => p != null).Select(Path.GetFileName)) : "none yet, they're made when you save"));
+                s.AppendLine(m.ManualDX != null ? Loc.F("Minimap moved by hand: {0:0}, {1:0}", m.MinimapDX, m.MinimapDZ) : Loc.T("Minimap stretched to the map's bounds"));
+            s.AppendLine(Loc.F("Spawn files: {0}", m.HasSpawnData ? string.Join(", ", new[] { m.SppPath, m.SpcPath, m.SpmPath }.Where(p => p != null).Select(Path.GetFileName)) : Loc.T("none yet, they're made when you save")));
             mapInfo.Text = s.ToString();
 
             var w = new List<string>();
-            if (m.OutsideCount > 0) w.Add(m.OutsideCount + " flags or NPCs are outside this map's bounds (shown with an orange ring). If most are, the map may have moved: use Shift.");
-            if (m.InServerExe == false) w.Add("The server program doesn't list this map, so it may not load it, even with spawn files.");
+            if (m.OutsideCount > 0) w.Add(Loc.F("{0} flags or NPCs are outside this map's bounds (shown with an orange ring). If most are, the map may have moved: use Shift.", m.OutsideCount));
+            if (m.InServerExe == false) w.Add(Loc.T("The server program doesn't list this map, so it may not load it, even with spawn files."));
             warn.Text = string.Join("\n\n", w);
             warn.Visible = w.Count > 0;
 
             twinList.Items.Clear();
             foreach (TwinInfo t in m.Twins)
-                twinList.Items.Add(string.Format("{0}: this map is X {1:+0;-0;0}, Z {2:+0;-0;0} from it{3}", t.Stem, t.DX, t.DZ, t.Exact ? "" : " (differs in places)"));
-            if (m.Twins.Count == 0) twinList.Items.Add("None found.");
+                twinList.Items.Add(Loc.F("{0}: this map is X {1:+0;-0;0}, Z {2:+0;-0;0} from it{3}", t.Stem, t.DX, t.DZ, t.Exact ? "" : Loc.T(" (differs in places)")));
+            if (m.Twins.Count == 0) twinList.Items.Add(Loc.T("None found."));
+        }
+
+        /// <summary>The language changed: texts built from the open map are built again.</summary>
+        public void RelabelAll()
+        {
+            if (Session != null) { FillMapTab(); UpdateStatus(); }
+            if (tree != null && cat != null) FillTree();
         }
 
         void TrySaveSettings()
         {
             try { cat.SaveSettings(); }
-            catch (IOException ex) { Ui.Error(this, "Couldn't save PriTaTor.ini:\n" + ex.Message); }
-            catch (UnauthorizedAccessException ex) { Ui.Error(this, "Couldn't save PriTaTor.ini:\n" + ex.Message); }
+            catch (IOException ex) { Ui.Error(this, Loc.F("Couldn't save PriTaTor.ini:\n{0}", ex.Message)); }
+            catch (UnauthorizedAccessException ex) { Ui.Error(this, Loc.F("Couldn't save PriTaTor.ini:\n{0}", ex.Message)); }
         }
 
         void ChooseMinimap()
         {
             if (Session == null) return;
             string dir = Path.Combine(cat.FieldRoot, "map");
-            using (var d = new OpenFileDialog { InitialDirectory = dir, Filter = "Minimaps (*.tga;*.bmp)|*.tga;*.bmp", Title = "Choose a minimap" })
+            using (var d = new OpenFileDialog { InitialDirectory = dir, Filter = Loc.T("Minimaps (*.tga;*.bmp)|*.tga;*.bmp"), Title = Loc.T("Choose a minimap") })
             {
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 try
@@ -1152,7 +1159,7 @@ namespace PriTaTor.UI
                 }
                 catch (Exception ex) when (ex is InvalidDataException || ex is IOException || ex is ArgumentException)
                 {
-                    Ui.Error(this, "Couldn't read that image:\n" + ex.Message);
+                    Ui.Error(this, Loc.F("Couldn't read that image:\n{0}", ex.Message));
                 }
             }
         }
@@ -1171,7 +1178,7 @@ namespace PriTaTor.UI
             if (Session == null) return;
             using (var d = new ImportDialog(cat, Session.Entry))
             {
-                if (d.Source.Items.Count == 0) { Ui.Error(this, "No other map has spawn data to copy."); return; }
+                if (d.Source.Items.Count == 0) { Ui.Error(this, Loc.T("No other map has spawn data to copy.")); return; }
                 if (d.ShowDialog(this) != DialogResult.OK || d.Chosen == null) return;
                 DoImport(d.Chosen, (int)d.DX.Value, (int)d.DZ.Value, d.Flags.Checked, d.Npcs.Checked, d.Monsters.Checked, d.Replace.Checked);
             }
@@ -1206,7 +1213,7 @@ namespace PriTaTor.UI
                 {
                     sx = (int)(Math.Round(dx / 4096) * 4096);
                     sz = (int)(Math.Round(dz / 4096) * 4096);
-                    note = "Most of this map's flags and NPCs are off the map. These amounts would bring them back: the nearest round move to the map's middle.";
+                    note = Loc.T("Most of this map's flags and NPCs are off the map. These amounts would bring them back: the nearest round move to the map's middle.");
                 }
             }
             using (var d = new ShiftDialog(sx, sz, note))
@@ -1233,19 +1240,19 @@ namespace PriTaTor.UI
             {
                 List<string> changed = Session.ChangedOnDisk();
                 if (changed.Count > 0 && MessageBox.Show(this,
-                        "These files changed on disk since you opened the map, and saving will overwrite them:\n\n" + string.Join("\n", changed.Select(Path.GetFileName)) + "\n\nOverwrite?",
+                        Loc.F("These files changed on disk since you opened the map, and saving will overwrite them:\n\n{0}\n\nOverwrite?", string.Join("\n", changed.Select(Path.GetFileName))),
                         "PriTaTor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                     return;
                 List<string> written = Session.Save();
                 host.SetStatus(written.Count > 0
-                    ? "Saved " + string.Join(", ", written.Select(Path.GetFileName)) + ". Reload the server for these to take effect. A copy of each old file is in " + SafeWrite.BackupFolderName + "."
-                    : "Nothing needed saving.");
+                    ? Loc.F("Saved {0}. Reload the server for these to take effect. A copy of each old file is in {1}.", string.Join(", ", written.Select(Path.GetFileName)), SafeWrite.BackupFolderName)
+                    : Loc.T("Nothing needed saving."));
                 UpdateTreeText();
                 FillMapTab();
                 UpdateButtons();
             }
-            catch (IOException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
-            catch (UnauthorizedAccessException ex) { Ui.Error(this, "Saving failed:\n" + ex.Message); }
+            catch (IOException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
+            catch (UnauthorizedAccessException ex) { Ui.Error(this, Loc.T("Saving failed:") + "\n" + ex.Message); }
         }
 
         void ApplyPendingEdits()
