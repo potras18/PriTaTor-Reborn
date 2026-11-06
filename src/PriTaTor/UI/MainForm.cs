@@ -111,9 +111,7 @@ namespace PriTaTor.UI
                 {
                     // whatever this is, it has to reach the screen: uncaught here, the loading window would stay up forever
                     err = ex is AggregateException a ? a.Flatten().InnerException : ex;
-                    try { File.AppendAllText(Path.Combine(ServerRoot, "PriTaTor_errors.log"), DateTime.Now + "\r\n" + ex + "\r\n\r\n"); }
-                    catch (IOException) { }
-                    catch (UnauthorizedAccessException) { }
+                    ToolFolder.LogError(ServerRoot, ex.ToString());
                 }
                 try { load.BeginInvoke((Action)(() => ScanDone(c, d, err, load))); }
                 catch (InvalidOperationException) { }   // closed with Cancel
@@ -126,7 +124,7 @@ namespace PriTaTor.UI
             if (err != null)
             {
                 if (UiTest.Running) UiTest.Fail(err);
-                else Ui.Error(load, "Couldn't read the server folder:\n\n" + err.Message + "\n\nDetails are in PriTaTor_errors.log.");
+                else Ui.Error(load, "Couldn't read the server folder:\n\n" + err.Message + "\n\nDetails are in PriTaTor\\errors.log.");
                 if (first) { Application.Exit(); return; }
                 Enabled = true;
                 load.Close();
@@ -145,7 +143,7 @@ namespace PriTaTor.UI
                 c.Maps.Count(m => m.HasGeometry), c.Maps.Count(m => m.HasSpawnData), linked);
             int prepared = Math.Max(c.MapsMeasured, c.MapsDrawn);
             string how = prepared > 0 ? "  Just prepared: " + prepared + "." : "";
-            string warn = c.ImagesWritable ? "" : "  Terrain pictures can't be saved in this folder, so maps are drawn as they open.";
+            string warn = c.ImagesWritable ? "" : "  This folder can't be saved to, so maps are prepared again at each start.";
             SetStatus(done + how + warn);
             // items are only needed for shops, so read them quietly now and shops open straight away
             Task.Run(() => d.Items.Value);
@@ -256,7 +254,7 @@ namespace PriTaTor.UI
 
         void ShowAbout() => MessageBox.Show(this,
             "PriTaTor Reborn " + Application.ProductVersion + "\nPriston Tale server manager and map editor.\n\n" +
-            "Map positions are measured from this server's own map files and kept in PriTaTor.ini.\n" +
+            "Map positions are measured from this server's own map files and kept in the PriTaTor folder.\n" +
             "The server reads its files at start-up: reload it after saving.\n\n" +
             "Credits\n" +
             "Sumomo created PriTaTor in 2008 and wrote every version up to PriTaTor 2.\n" +

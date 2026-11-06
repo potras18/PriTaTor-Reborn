@@ -77,7 +77,7 @@ namespace PriTaTor.UI
                 foreach (string d in Directory.EnumerateDirectories(dir).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
                 {
                     string folder = Path.GetFileName(d);
-                    if (string.Equals(folder, SafeWrite.BackupFolderName, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, TerrainCache.FolderName, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (string.Equals(folder, ToolFolder.OldBackupsName, StringComparison.OrdinalIgnoreCase) || string.Equals(folder, TerrainCache.FolderName, StringComparison.OrdinalIgnoreCase)) continue;
                     var c = new TreeNode(Path.GetFileName(d)) { Tag = d };
                     c.Nodes.Add(new TreeNode("…"));
                     n.Nodes.Add(c);

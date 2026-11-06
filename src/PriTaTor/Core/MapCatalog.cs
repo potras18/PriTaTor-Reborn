@@ -1,5 +1,5 @@
 // Finds every map on this server, works out where each one sits in the world, and remembers it
-// in PriTaTor.ini in the server folder. Nothing about map positions is built into the program:
+// in PriTaTor\PriTaTor.ini in the server folder. Nothing about map positions is built into the program:
 // it all comes from the .smd files found here, including moved copies such as old\forest\o_fore-1.smd.
 
 using System;
@@ -53,7 +53,7 @@ namespace PriTaTor.Core
     {
         public string ServerRoot, FieldRoot, GameFieldRoot;
         public List<MapEntry> Maps = new List<MapEntry>();
-        public string SettingsPath => Path.Combine(ServerRoot, "PriTaTor.ini");
+        public string SettingsPath => ToolFolder.SettingsFile(ServerRoot);
         public bool GeneratedThisRun;
         public bool ImagesWritable;
         public int MapsMeasured, MapsDrawn;
@@ -64,7 +64,7 @@ namespace PriTaTor.Core
 
         public static string ReadFieldOverride(string serverRoot)
         {
-            string ini = Path.Combine(serverRoot, "PriTaTor.ini");
+            string ini = ToolFolder.SettingsToRead(serverRoot);
             if (!File.Exists(ini)) return null;
             foreach (string l in File.ReadAllLines(ini, Encoding.UTF8))
                 if (l.StartsWith("FieldPath=", StringComparison.OrdinalIgnoreCase))
@@ -78,6 +78,7 @@ namespace PriTaTor.Core
         /// <param name="force">Ignore what's saved and measure and draw everything again.</param>
         public static Catalog Scan(string serverRoot, string fieldRoot, bool force, Action<string, int, int> progress = null)
         {
+            ToolFolder.MoveOldFiles(serverRoot);
             var c = new Catalog
             {
                 ServerRoot = serverRoot,
@@ -85,7 +86,7 @@ namespace PriTaTor.Core
                 FieldRoot = fieldRoot ?? ReadFieldOverride(serverRoot) ?? Path.Combine(serverRoot, "Field")
             };
             progress?.Invoke("Looking for maps…", 0, 0);
-            var saved = Ini.Read(c.SettingsPath);
+            var saved = Ini.Read(ToolFolder.SettingsToRead(serverRoot));
             List<string> files = c.FindStageFiles(saved, force);
             var changed = new List<MapEntry>();
             var entries = new List<MapEntry>();
@@ -148,7 +149,13 @@ namespace PriTaTor.Core
             c.ReadServerExeMaps();
             c.RefreshCounts();
             c.Maps.Sort((x, y) => string.Compare(x.RelPath ?? x.Stem, y.RelPath ?? y.Stem, StringComparison.OrdinalIgnoreCase));
-            if (c.GeneratedThisRun) c.SaveSettings();
+            if (c.GeneratedThisRun)
+            {
+                // on a read-only server the tool still works, it just prepares the maps again next time
+                try { c.SaveSettings(); }
+                catch (IOException) { c.ImagesWritable = false; }
+                catch (UnauthorizedAccessException) { c.ImagesWritable = false; }
+            }
             return c;
         }
 
@@ -439,7 +446,7 @@ namespace PriTaTor.Core
             var sb = new StringBuilder();
             sb.AppendLine("; PriTaTor server settings. Generated from this server's own map files, safe to delete:");
             sb.AppendLine("; a map is measured again only when its file changes. Minimap positions you set by hand are kept here.");
-            sb.AppendLine("; Terrain pictures are in the PriTaTor folder beside this file, and are also safe to delete.");
+            sb.AppendLine("; Terrain pictures are in the Terrain folder beside this file, and are also safe to delete.");
             sb.AppendLine();
             sb.AppendLine("[server]");
             sb.AppendLine("Generated=" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
@@ -461,6 +468,7 @@ namespace PriTaTor.Core
                 if (m.ManualMinimap != null) sb.AppendLine("MinimapFile=" + m.ManualMinimap);
                 sb.AppendLine("Twins=" + string.Join(";", m.Twins.Select(t => t.Stem + "|" + t.DX + "|" + t.DZ + "|" + (t.Exact ? "1" : "0"))));
             }
+            Directory.CreateDirectory(ToolFolder.Dir(ServerRoot));
             string tmp = SettingsPath + ".tmp";
             File.WriteAllText(tmp, sb.ToString(), new UTF8Encoding(false));
             if (File.Exists(SettingsPath)) File.Delete(SettingsPath);

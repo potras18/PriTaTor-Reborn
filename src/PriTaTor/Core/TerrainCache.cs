@@ -10,7 +10,7 @@ namespace PriTaTor.Core
 {
     public static class TerrainCache
     {
-        public const string FolderName = "PriTaTor";
+        public const string FolderName = ToolFolder.Name;
         public const int LongestSide = 2048;
         /// <summary>Raise this when the drawing changes, so saved pictures get redrawn.</summary>
         public const int DrawVersion = 1;

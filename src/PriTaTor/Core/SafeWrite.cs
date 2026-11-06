@@ -9,7 +9,7 @@ namespace PriTaTor.Core
     public static class SafeWrite
     {
         public static string ServerRoot;
-        public static string BackupFolderName = "PriTaTor_Backups";
+        public static string BackupFolderName = Path.Combine(ToolFolder.Name, "Backups");
 
         /// <summary>Returns false when the file already held exactly this data.</summary>
         public static bool Save(string path, byte[] data)

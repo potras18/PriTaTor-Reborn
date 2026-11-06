@@ -11,7 +11,10 @@ A server manager and map editor for Priston Tale. One exe, nothing to install.
    Later starts skip this, and only a map whose `.smd` changed gets prepared again.
 3. Reload the server after saving: it only reads these files when it starts.
 
-Before any file is overwritten, the old one is copied to `PriTaTor_Backups\<date and time>\`.
+Before any file is overwritten, the old one is copied to `PriTaTor\Backups\<date and time>\`.
+
+Everything the tool writes for itself is in the `PriTaTor` folder: `PriTaTor.ini`, `Backups`, `Terrain`, and `errors.log` if
+something went wrong. Files left in the server folder by an older version move in by themselves.
 
 ## Tabs
 

@@ -61,13 +61,12 @@ namespace PriTaTor
             if (ex == null) return;
             try
             {
-                string log = Path.Combine(SafeWrite.ServerRoot ?? Path.GetDirectoryName(Application.ExecutablePath), "PriTaTor_errors.log");
-                File.AppendAllText(log, DateTime.Now + "\r\n" + ex + "\r\n\r\n");
+                ToolFolder.LogError(SafeWrite.ServerRoot ?? Path.GetDirectoryName(Application.ExecutablePath), ex.ToString());
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
             if (UiTest.Running) { UiTest.Fail(ex); return; }
-            MessageBox.Show("Something went wrong:\n\n" + ex.Message + "\n\nDetails are in PriTaTor_errors.log.", "PriTaTor", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("Something went wrong:\n\n" + ex.Message + "\n\nDetails are in PriTaTor\\errors.log.", "PriTaTor", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }

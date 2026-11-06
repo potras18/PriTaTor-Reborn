@@ -269,6 +269,9 @@ namespace PriTaTor.UI
             SpawnFlag disk = SppFile.Load(maps.Session.Entry.SppPath).Flags.First(x => x.Slot == 5);
             Check(disk.X != fx && disk.Z != fz, "Save wrote the new position to the .spp");
             Check(!maps.HasUnsaved, "clean after save");
+            Check(Directory.Exists(ToolFolder.BackupsFolder(form.ServerRoot)) && Directory.GetDirectories(ToolFolder.BackupsFolder(form.ServerRoot)).Length > 0, "the backup went in PriTaTor\\Backups");
+            Check(!Directory.Exists(Path.Combine(form.ServerRoot, ToolFolder.OldBackupsName)), "nothing is left in the old backups folder");
+            Check(File.Exists(ToolFolder.SettingsFile(form.ServerRoot)) && !File.Exists(Path.Combine(form.ServerRoot, "PriTaTor.ini")), "settings are in the PriTaTor folder");
             Shot("03_de-4_flag_moved");
 
             Log("== box select, delete, undo");

@@ -216,7 +216,7 @@ static class Program
             SppFile re = SppFile.Load(m.SppPath);
             Check(re.Flags.Count == oldCount && re.Flags.Any(x => x.X == -4000 && x.Z == -10000) && re.Flags.All(x => x.Slot != 0), "adding and removing flags saved");
             Check(after.Length == File.ReadAllBytes(m.SppPath).Length, "file size unchanged");
-            Check(Directory.Exists(Path.Combine(root, SafeWrite.BackupFolderName)), "backup folder created");
+            Check(Directory.GetDirectories(ToolFolder.BackupsFolder(root)).Length > 0 && !Directory.Exists(Path.Combine(root, ToolFolder.OldBackupsName)), "backups go in PriTaTor\\Backups");
         }
         {
             // the short village-1 file grows when a flag goes past its end
@@ -431,7 +431,38 @@ static class Program
             c3.SaveSettings();
             Catalog c4 = Catalog.Scan(root, tmpField, true, null);
             Check(c4.Find("fore-3").ManualDX == 12 && c4.Find("fore-3").ManualDZ == -34, "a minimap position set by hand survives Rebuild");
-            File.Delete(Path.Combine(root, "PriTaTor.ini"));
+            File.Delete(ToolFolder.SettingsFile(root));
+
+            // upgrading: an install laid out by v3.2.0 moves in without redoing any work
+            string upRoot = Path.Combine(root, "scratch_upgrade");
+            Directory.CreateDirectory(Path.Combine(upRoot, "GameServer", "Field"));
+            Catalog u1 = Catalog.Scan(upRoot, tmpField, false, null);
+            u1.Find("fore-3").ManualDX = 7;
+            u1.Find("fore-3").ManualDZ = 8;
+            u1.SaveSettings();
+            string upIni = Path.Combine(upRoot, "PriTaTor.ini"), upBack = Path.Combine(upRoot, ToolFolder.OldBackupsName), upLog = Path.Combine(upRoot, "PriTaTor_errors.log");
+            File.Move(ToolFolder.SettingsFile(upRoot), upIni);
+            Directory.CreateDirectory(Path.Combine(upBack, "2026-01-01_000000", "GameServer"));
+            File.WriteAllText(Path.Combine(upBack, "2026-01-01_000000", "GameServer", "a.txt"), "old backup");
+            File.WriteAllText(upLog, "old error\r\n");
+            string pic = TerrainCache.PathFor(u1, u1.Find("fore-3"));
+            DateTime picTime = File.GetLastWriteTimeUtc(pic);
+            Catalog u2 = Catalog.Scan(upRoot, tmpField, false, null);
+            Check(File.Exists(ToolFolder.SettingsFile(upRoot)) && !File.Exists(upIni), "upgrading moves the settings in");
+            Check(u2.MapsMeasured == 0 && u2.MapsDrawn == 0 && File.GetLastWriteTimeUtc(pic) == picTime, "without measuring or drawing anything");
+            Check(u2.Find("fore-3").ManualDX == 7 && u2.Find("fore-3").ManualDZ == 8, "hand-set minimap positions come with it");
+            Check(!Directory.Exists(upBack) && File.ReadAllText(Path.Combine(ToolFolder.BackupsFolder(upRoot), "2026-01-01_000000", "GameServer", "a.txt")) == "old backup", "old backups move in");
+            Check(!File.Exists(upLog) && File.ReadAllText(ToolFolder.ErrorLog(upRoot)).Contains("old error"), "the error log moves in");
+            // backups from both versions side by side: none lost
+            Directory.CreateDirectory(Path.Combine(upBack, "2026-01-01_000000", "GameServer"));
+            File.WriteAllText(Path.Combine(upBack, "2026-01-01_000000", "GameServer", "a.txt"), "same name");
+            File.WriteAllText(Path.Combine(upBack, "2026-01-01_000000", "GameServer", "b.txt"), "other");
+            File.WriteAllText(upIni, "; stale");
+            Catalog u3 = Catalog.Scan(upRoot, tmpField, false, null);
+            string merged = Path.Combine(ToolFolder.BackupsFolder(upRoot), "2026-01-01_000000", "GameServer");
+            Check(File.ReadAllText(Path.Combine(merged, "a.txt")) == "old backup" && File.ReadAllText(Path.Combine(merged, "a.txt.moved")) == "same name" && File.Exists(Path.Combine(merged, "b.txt")), "merging backups overwrites nothing");
+            Check(!Directory.Exists(upBack), "and clears the old folder");
+            Check(!File.Exists(upIni) && u3.MapsMeasured == 0 && u3.Find("fore-3").ManualDX == 7, "a stale old settings file doesn't replace the current one");
 
             // a folder pictures can't be saved in still works
             string roRoot = Path.Combine(root, "scratch_readonly");
@@ -439,7 +470,7 @@ static class Program
             File.WriteAllText(Path.Combine(roRoot, TerrainCache.FolderName), "a file in the way");
             Catalog ro = Catalog.Scan(roRoot, tmpField, false, null);
             MapEntry roMap = ro.Find("fore-3");
-            Check(!ro.ImagesWritable && roMap != null && roMap.MaxX > roMap.MinX, "if pictures can't be saved, maps are still measured");
+            Check(!ro.ImagesWritable && roMap != null && roMap.MaxX > roMap.MinX, "if nothing can be saved, the tool still starts and maps are measured");
             using (System.Drawing.Bitmap bmp = TerrainCache.Load(ro, roMap, StageMesh.Load(roMap.SmdPath), out bool savedRo))
                 Check(bmp.Width > 1000 && !savedRo, "and drawn when they open");
         }
