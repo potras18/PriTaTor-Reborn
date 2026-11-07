@@ -16,6 +16,10 @@ Before any file is overwritten, the old one is copied to `PriTaTor\Backups\<date
 Everything the tool writes for itself is in the `PriTaTor` folder: `PriTaTor.ini`, `Backups`, `Terrain`, and `errors.log` if
 something went wrong. Files left in the server folder by an older version move in by themselves.
 
+The interface comes in English, Spanish and Portuguese: **Help > Languages** switches at once, with no restart. The choice
+is kept in `%AppData%\PriTaTor\language.txt`, since it's needed before a server folder is picked. Only what's shown on screen
+is translated, so the files saved to your server are the same in any language.
+
 ## Tabs
 
 | Tab | What it edits |
@@ -122,6 +126,8 @@ PriTaTor Reborn is a new program, written from scratch in C#, but it stands on y
 - **bobsobol** kept the 1.8 downloads and full source available on RaGEZONE and helped work out the game's Korean text
   encoding in the PriTaTor thread.
 - **MysteryPT** made the map references that shipped with PriTaTor 2.
+- **[potras18](https://github.com/potras18)** contributed the Spanish and Portuguese interface
+  ([pull request 1](https://github.com/sungam3d/PriTaTor-Reborn/pull/1)).
 
 The map reading is based on the SMD work in the
 [SMD to ASE Converter](https://github.com/sungam3d/Pristontale-SMD-to-ASE-Converter) project.
